@@ -1,0 +1,31 @@
+schema: '2.0'
+stages:
+  preprocess:
+    cmd: python Scripts/Preprocessing.py
+    deps:
+    - path: Data/Raw/
+      hash: md5
+      md5: 0aed70582f25c0093db74050d9581814.dir
+      size: 79499721
+      nfiles: 3
+    - path: Scripts/Preprocessing.py
+      hash: md5
+      md5: d8389007eaa5529dcd2330fbfe41446b
+      size: 6553
+    outs:
+    - path: Data/Processed/X_test_clean.csv
+      hash: md5
+      md5: a9a08c1efa978d864a1307d25c8c7f04
+      size: 110295032
+    - path: Data/Processed/X_train_clean.csv
+      hash: md5
+      md5: 1b3e3ef41d7c8449d364dc1aa4a258d0
+      size: 441181293
+    - path: Data/Processed/Y_test_clean.csv
+      hash: md5
+      md5: bf9f8a0d444d3f22dd12b8ed8902e1e1
+      size: 748067
+    - path: Data/Processed/Y_train_clean.csv
+      hash: md5
+      md5: 94e1fb216fb1c171c1538a9a88d35bce
+      size: 2992827
