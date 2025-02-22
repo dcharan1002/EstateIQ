@@ -1,0 +1,11 @@
+stages:
+  preprocess:
+    cmd: python Scripts/Preprocessing.py
+    deps:
+      - Scripts/Preprocessing.py
+      - Data/Raw/
+    outs:
+      - Data/Processed/X_test_clean.csv
+      - Data/Processed/X_train_clean.csv
+      - Data/Processed/Y_test_clean.csv
+      - Data/Processed/Y_train_clean.csv
