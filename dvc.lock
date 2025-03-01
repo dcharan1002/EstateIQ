@@ -34,8 +34,8 @@ stages:
     outs:
     - path: data/features/feature_analysis.png
       hash: md5
-      md5: 88d40454f76611e0b38161ee77d1857c
-      size: 6311686
+      md5: 9706d80f3bb9843ee76712a7a53313e5
+      size: 2027431
       isexec: true
     - path: data/features/feature_importance_details.csv
       hash: md5
@@ -44,23 +44,23 @@ stages:
       isexec: true
     - path: data/features/feature_report.md
       hash: md5
-      md5: c7ee7e276211f46bb3875abc3f22cc6a
-      size: 5252
+      md5: 5329dd995da39db916895aed6efb1f25
+      size: 16744
       isexec: true
     - path: data/features/feature_summary.csv
       hash: md5
-      md5: 619da5057a7563357daaafae59cf05a8
-      size: 6326
+      md5: 965dc0ee5b9cc7fdbe40cfd40c1850e4
+      size: 16331
       isexec: true
     - path: data/final/X_test.csv
       hash: md5
-      md5: d9808c0ee492c816e0d3287c64377a92
-      size: 38284969
+      md5: 74a0300e2ad147bcebd70b98ed538309
+      size: 31693182
       isexec: true
     - path: data/final/X_train.csv
       hash: md5
-      md5: 9c07f829dfe244909dac224168d76ce3
-      size: 144556003
+      md5: cd49e45c7d0c7b12532d6ad08716ec7f
+      size: 125061093
       isexec: true
     - path: data/final/y_test.csv
       hash: md5
@@ -74,13 +74,13 @@ stages:
       isexec: true
     - path: data/processed/clean/X_test_clean.csv
       hash: md5
-      md5: 65450fe8c996788b5bcb7945c1ccea5b
-      size: 23245265
+      md5: 363cefee810a0b5d6bafbb8b6af71631
+      size: 25558794
       isexec: true
     - path: data/processed/clean/X_train_clean.csv
       hash: md5
-      md5: 56f2a3997d95b95d09959aeb96110552
-      size: 93025818
+      md5: 93f52efba79bee0bd1c474aeef76028d
+      size: 102270966
       isexec: true
     - path: data/processed/clean/y_test_clean.csv
       hash: md5
@@ -94,15 +94,16 @@ stages:
       isexec: true
     - path: data/processed/engineered/X_test_engineered.csv
       hash: md5
-      md5: a655ca621e96b90ad30fca9d16fb449f
-      size: 38653825
+      md5: 38a3f4afdf0544f88564e9bef563b298
+      size: 31697341
       isexec: true
     - path: data/processed/engineered/X_train_engineered.csv
       hash: md5
-      md5: 5536744a9016aedd6755b30c880414d4
-      size: 146015109
+      md5: 52d9c1fa0e998c38ff9576d8bebe54bf
+      size: 125078447
       isexec: true
     - path: data/raw/boston_2025.csv
       hash: md5
       md5: 3297e005d6bd6c141d601f0b5528067c
       size: 108865401
+      isexec: true

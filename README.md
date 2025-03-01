@@ -26,7 +26,7 @@ A robust data preprocessing pipeline for property data with feature engineering,
 └── requirements.txt      # Python dependencies
 ```
 
-## Features
+## Key Features
 - Automated data cleaning and preprocessing
 - Feature engineering for property data
 - Data validation and quality checks
@@ -56,18 +56,27 @@ venv\Scripts\activate     # Windows
 pip install -r requirements.txt
 ```
 
-## Data Pipeline
+### Docker Setup
+```bash
+# Build with cache
+docker build -t estateiq:latest .
+
+# Force clean build
+docker build --no-cache -t estateiq:latest .
+
+# Run with Docker Compose
+docker compose build && docker compose up
+```
+
+## Pipeline Components
 
 ### 1. Data Preprocessing
-The pipeline handles:
 - Property condition standardization
 - Address parsing and normalization
 - Spatial feature generation
 - Property age calculations
-- Feature engineering
 
 ### 2. Feature Engineering
-Generated features include:
 - Property age categories
 - Distance to city center
 - Price per square foot
@@ -79,6 +88,8 @@ Generated features include:
 - Missing value handling
 - Outlier detection
 - Data type consistency
+- Anomaly detection with configurable thresholds
+- Bias detection and pattern preservation
 
 ## Development
 
@@ -87,73 +98,67 @@ Generated features include:
 # Run all tests with coverage
 python -m pytest
 ```
-## Airflow Integration
 
-### DAG Structure
-The main DAG (`dags/main_dag.py`) includes:
-1. Data download
-2. Data cleaning
-3. Feature engineering
-4. Quality reporting
-
-
-## Configuration Guide
+## Configuration
 
 ### Environment Variables
-Create a `.env` file in the project root with the following configurations:
+Create a `.env` file in the project root:
 ```bash
 # Airflow Default User
 _AIRFLOW_WWW_USER_USERNAME=airflow2
 _AIRFLOW_WWW_USER_PASSWORD=airflow2
-```
 
-### Email Setup with Google App Password
-1. Generate App Password for SMTP:
-   - Visit https://support.google.com/accounts/answer/185833
-   - Sign in to your Google Account
-   - Go to Security settings
-   - Enable 2-Step Verification if not already enabled
-   - Under "App passwords", select "Mail" and your device
-   - Use the generated 16-character password as AIRFLOW__SMTP__SMTP_PASSWORD
-
-2. Configure email notifications in `.env`:
-```bash
 # Email Configuration
 AIRFLOW__SMTP__SMTP_MAIL_FROM=your_email@gmail.com
 AIRFLOW__SMTP__SMTP_PASSWORD=your_generated_app_password
 ```
 
-### Docker Build Process
-2. Build and tag the image:
+### Email Notifications
+1. Generate App Password for SMTP:
+   - Visit https://support.google.com/accounts/answer/185833
+   - Sign in to your Google Account
+   - Enable 2-Step Verification if needed
+   - Under "App passwords", select "Mail" and your device
+   - Use the generated password as AIRFLOW__SMTP__SMTP_PASSWORD
+
+## Workflow Automation
+
+### Airflow DAG Structure
+The main DAG (`dags/main_dag.py`) orchestrates:
+1. Data download
+2. Data cleaning
+3. Feature engineering
+4. Quality reporting
+
+### Error Handling and Logging
+- Comprehensive logging system in logger.py
+- Rotating file handlers
+- Email notifications for critical errors
+- Task failure handling and retries
+
+## Data Version Control (DVC)
+
+### Setup with Google Cloud Storage
+1. Install Google Cloud SDK from https://cloud.google.com/sdk/docs/install
+2. Configure authentication:
 ```bash
-# Build with cache
-docker build -t estateiq:latest .
-
-# Force clean build
-docker build --no-cache -t estateiq:latest .
-
-# Directly run the container
-docker componse build && docker-compose up
-```
-
-### DVC Data Management
-
-1. Configure GCP authentication:
-```bash
-# Verify authentication
 gcloud auth login
 ```
 
-#### Data Versioning
+### Usage
 ```bash
-# Track and push data
+# Track and commit changes
+dvc commit
+
+# Push data to GCP bucket
 dvc push
 
 # Pull data from GCP bucket
 dvc pull
 ```
 
-Note: Prior authentication with GCP is required to access the bucket storage. Ensure you have the necessary permissions and credentials configured.
+Note: Ensure you have proper GCP authentication and permissions configured before using DVC with Google Cloud Storage.
+
 
 ## Implementation Status
 
