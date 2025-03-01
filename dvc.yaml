@@ -1,11 +1,38 @@
 stages:
-  preprocess:
-    cmd: python Scripts/Preprocessing.py
-    deps:
-      - Scripts/Preprocessing.py
-      - Data/Raw/
+  track_data:
+    cmd: "echo 'Tracking data files'"
     outs:
-      - Data/Processed/X_test_clean.csv
-      - Data/Processed/X_train_clean.csv
-      - Data/Processed/Y_test_clean.csv
-      - Data/Processed/Y_train_clean.csv
+      # Raw data
+      - data/raw/boston_2025.csv
+      # Cleaned data
+      - data/processed/clean/X_train_clean.csv:
+          persist: true
+      - data/processed/clean/X_test_clean.csv:
+          persist: true
+      - data/processed/clean/y_train_clean.csv:
+          persist: true
+      - data/processed/clean/y_test_clean.csv:
+          persist: true
+      # Engineered features
+      - data/processed/engineered/X_train_engineered.csv:
+          persist: true
+      - data/processed/engineered/X_test_engineered.csv:
+          persist: true
+      # Reports and visualizations
+      - data/features/feature_analysis.png:
+          persist: true
+      - data/features/feature_report.md:
+          persist: true
+      - data/features/feature_summary.csv:
+          persist: true
+      - data/features/feature_importance_details.csv:
+          persist: true
+      # Final datasets
+      - data/final/X_train.csv:
+          persist: true
+      - data/final/X_test.csv:
+          persist: true
+      - data/final/y_train.csv:
+          persist: true
+      - data/final/y_test.csv:
+          persist: true

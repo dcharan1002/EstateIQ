@@ -1,0 +1,35 @@
+*.code-workspace
+**/__pycache__/
+
+# DVC
+*.dvc.lock
+/logs/
+.env
+./logs/
+
+# Python
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env/
+.venv/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Airdlow
+plugins/

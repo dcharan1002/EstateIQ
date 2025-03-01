@@ -1,0 +1,19 @@
+# Core dependencies
+pandas>=1.5.0
+numpy>=1.21.0
+scikit-learn>=1.0.0
+
+# Data visualization
+matplotlib>=3.5.0
+seaborn>=0.11.0
+
+# Statistics and monitoring
+scipy>=1.7.0
+
+# Apache Airflow
+apache-airflow>=2.5.0
+apache-airflow-providers-docker>=3.0.0
+
+# Testing
+pytest>=7.0.0
+pytest-cov>=4.0.0

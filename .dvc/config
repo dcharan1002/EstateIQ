@@ -1,4 +1,4 @@
 [core]
-    autostage = true
+    remote = myremote
 ['remote "myremote"']
     url = gs://boston_estate_data/Data/
