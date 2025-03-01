@@ -51,21 +51,15 @@ class FeatureReporter:
             plt.style.use('seaborn-v0_8-white')
             sns.set_palette("husl")
             
-            # Create and save the plots
-            fig = plt.figure(figsize=(40, 30))
-            plt.subplots_adjust(hspace=0.4, wspace=0.4)
+            # Create figure and subplots with proper spacing
+            fig, axes = plt.subplots(2, 2, figsize=(20, 16))
+            plt.subplots_adjust(hspace=0.3, wspace=0.3)
             
-            # Create all subplots
-            for i in range(4):
-                plt.subplot(2, 2, i+1)
-                if i == 0:  # Value distribution
-                    self._create_value_distribution_plot(df)
-                elif i == 1:  # Area vs Value
-                    self._create_area_value_plot(df)
-                elif i == 2:  # Room distribution
-                    self._create_room_distribution_plot(df)
-                else:  # Correlation matrix
-                    self._create_correlation_matrix(df)
+            # Create all subplots using the axes objects
+            self._create_value_distribution_plot(df, axes[0, 0])
+            self._create_area_value_plot(df, axes[0, 1])
+            self._create_room_distribution_plot(df, axes[1, 0])
+            self._create_correlation_matrix(df, axes[1, 1])
             
             # Save the figure
             plt.savefig(f'{self.output_dir}/feature_analysis.png', 
@@ -81,35 +75,39 @@ class FeatureReporter:
             plt.savefig(f'{self.output_dir}/feature_analysis.png')
             plt.close()
     
-    def _create_value_distribution_plot(self, df):
+    def _create_value_distribution_plot(self, df, ax):
         """Create value distribution subplot"""
         if not df['TOTAL_VALUE'].empty and df['TOTAL_VALUE'].notna().any():
             sns.histplot(data=df, x='TOTAL_VALUE', bins=50, 
-                        color='#2ecc71', edgecolor='white')
-            plt.xscale('log')
+                        color='#2ecc71', edgecolor='white', ax=ax)
+            ax.set_xscale('log')
         else:
-            plt.text(0.5, 0.5, 'No value data available',
-                    ha='center', va='center', transform=plt.gca().transAxes)
-        plt.title('Property Value Distribution')
-        plt.xlabel('Total Value (log scale)')
-        plt.ylabel('Count')
+            ax.text(0.5, 0.5, 'No value data available',
+                   ha='center', va='center', transform=ax.transAxes)
+        ax.set_title('Property Value Distribution')
+        ax.set_xlabel('Total Value (log scale)')
+        ax.set_ylabel('Count')
+        self._format_axis_labels(ax)
     
-    def _create_area_value_plot(self, df):
+    def _create_area_value_plot(self, df, ax):
         """Create area vs value subplot"""
         if all(col in df.columns for col in ['LIVING_AREA', 'BLDG_VALUE']):
             valid_mask = df['LIVING_AREA'].notna() & df['BLDG_VALUE'].notna()
             if valid_mask.any():
-                sns.scatterplot(data=df[valid_mask], 
-                              x='LIVING_AREA', y='BLDG_VALUE')
+                sns.regplot(data=df[valid_mask], 
+                          x='LIVING_AREA', y='BLDG_VALUE', ax=ax,
+                          scatter_kws={'alpha':0.5, 's':20},
+                          line_kws={'color': 'red'})
             else:
-                plt.text(0.5, 0.5, 'No valid data points',
-                        ha='center', va='center', transform=plt.gca().transAxes)
+                ax.text(0.5, 0.5, 'No valid data points',
+                       ha='center', va='center', transform=ax.transAxes)
         else:
-            plt.text(0.5, 0.5, 'Missing required columns',
-                    ha='center', va='center', transform=plt.gca().transAxes)
-        plt.title('Living Area vs Building Value')
+            ax.text(0.5, 0.5, 'Missing required columns',
+                   ha='center', va='center', transform=ax.transAxes)
+        ax.set_title('Living Area vs Building Value')
+        self._format_axis_labels(ax)
     
-    def _create_room_distribution_plot(self, df):
+    def _create_room_distribution_plot(self, df, ax):
         """Create room distribution subplot"""
         room_cols = ['TT_RMS', 'BED_RMS']
         room_data = {}
@@ -121,13 +119,16 @@ class FeatureReporter:
                     room_data[col] = series.value_counts().sort_index()
         
         if room_data:
-            pd.DataFrame(room_data).plot(kind='bar')
-            plt.title('Room Distribution')
+            pd.DataFrame(room_data).plot(kind='bar', ax=ax)
+            ax.set_title('Room Distribution')
+            ax.set_xlabel('Number of Rooms')
+            ax.set_ylabel('Count')
         else:
-            plt.text(0.5, 0.5, 'No room data available',
-                    ha='center', va='center', transform=plt.gca().transAxes)
+            ax.text(0.5, 0.5, 'No room data available',
+                   ha='center', va='center', transform=ax.transAxes)
+        self._format_axis_labels(ax, x_rotation=45)
     
-    def _create_correlation_matrix(self, df):
+    def _create_correlation_matrix(self, df, ax):
         """Create correlation matrix subplot"""
         numeric_cols = ['BLDG_VALUE', 'LAND_VALUE', 'LIVING_AREA', 'GROSS_AREA',
                        'TT_RMS', 'BED_RMS', 'FULL_BTH', 'HLF_BTH']
@@ -135,11 +136,15 @@ class FeatureReporter:
         
         if len(available_cols) > 1:
             corr_df = df[available_cols].apply(pd.to_numeric, errors='coerce').corr()
-            sns.heatmap(corr_df, annot=True, cmap='coolwarm', center=0)
-            plt.title('Feature Correlations')
+            sns.heatmap(corr_df, annot=True, cmap='coolwarm', center=0, ax=ax, 
+                       fmt='.2f', annot_kws={'size': 8})
+            ax.set_title('Feature Correlations')
+            # Rotate x-axis labels for better readability
+            ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
+            ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
         else:
-            plt.text(0.5, 0.5, 'Insufficient data for correlation',
-                    ha='center', va='center', transform=plt.gca().transAxes)
+            ax.text(0.5, 0.5, 'Insufficient data for correlation',
+                   ha='center', va='center', transform=ax.transAxes)
     
     def generate_feature_summary(self, df):
         """Generate feature summary statistics and reports"""
