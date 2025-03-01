@@ -13,6 +13,7 @@ scipy>=1.7.0
 # Apache Airflow
 apache-airflow>=2.5.0
 apache-airflow-providers-docker>=3.0.0
+apache-airflow-providers-sendgrid>=3.0.0
 
 # Testing
 pytest>=7.0.0

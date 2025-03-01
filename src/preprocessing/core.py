@@ -27,8 +27,10 @@ def identify_column_types(df):
             column_types['coordinates'].append(column)
             continue
             
-        # Check for address components
-        if any(addr in column.lower() for addr in ['address', 'street', 'city', 'state', 'zip']):
+        # Check for address components (including zip code check)
+        col_lower = column.lower()
+        if any(addr in col_lower for addr in ['address', 'street', 'city', 'state']) or \
+           ('zip' in col_lower and (df[column].dtype == 'object' or df[column].astype(str).str.len().mean() == 5)):
             column_types['address'].append(column)
             continue
             
@@ -62,62 +64,6 @@ def identify_column_types(df):
             column_types['categorical'].append(column)
             
     return column_types
-
-def extract_address_components(address_series):
-    components = pd.DataFrame()
-    
-    # Extract house numbers
-    components['house_number'] = address_series.str.extract(r'^(\d+)')
-    
-    # Extract street names
-    components['street_name'] = address_series.str.extract(r'\d+\s+(.*?)\s*(?:,|$)')
-    
-    # Extract unit numbers
-    components['unit_number'] = address_series.str.extract(r'(?:UNIT|APT|#)\s*(\w+)')
-    
-    return components
-
-def create_spatial_features(df, lat_col, lon_col):
-    df = df.copy()
-    
-    # Calculate distance from city center (example coordinates for demonstration)
-    city_center = {'lat': 42.3601, 'lon': -71.0589}  # Boston coordinates
-    
-    def haversine_distance(row):
-        R = 6371  # Earth's radius in kilometers
-        
-        lat1, lon1 = np.radians([row[lat_col], row[lon_col]])
-        lat2, lon2 = np.radians([city_center['lat'], city_center['lon']])
-        
-        dlat = lat2 - lat1
-        dlon = lon2 - lon1
-        
-        a = np.sin(dlat/2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon/2)**2
-        c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1-a))
-        distance = R * c
-        
-        return distance
-    
-    df['distance_to_center'] = df.apply(haversine_distance, axis=1)
-    
-    return df
-
-def calculate_property_age(df, year_built_col, reference_year=None):
-    df = df.copy()
-    
-    if reference_year is None:
-        reference_year = datetime.now().year
-        
-    df['property_age'] = reference_year - df[year_built_col]
-    
-    # Age buckets
-    df['age_category'] = pd.cut(
-        df['property_age'],
-        bins=[-float('inf'), 5, 10, 20, 30, 50, float('inf')],
-        labels=['New', '5-10 years', '10-20 years', '20-30 years', '30-50 years', '50+ years']
-    )
-    
-    return df
 
 def save_processed_data(X_train, X_test, y_train, y_test, output_dir="/sources/data/processed"):
     pd.DataFrame(X_train).to_csv(f"{output_dir}/X_train_clean.csv", index=False)

@@ -33,3 +33,8 @@ Thumbs.db
 
 # Airdlow
 plugins/
+
+# Test
+.htmlcov/
+.pytest_cache/
+.coverage

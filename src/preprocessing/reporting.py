@@ -29,282 +29,224 @@ class FeatureReporter:
                                                          else f'${x/1000000:,.1f}M'))
     
     def generate_combined_plots(self, df):
-        # Calculate total value
-        df['TOTAL_VALUE'] = df['BLDG_VALUE'].fillna(0) + df['LAND_VALUE'].fillna(0)
+        df = df.copy()
         
-        # Set modern style with enhanced aesthetics
-        plt.style.use('seaborn-v0_8-white')
-        sns.set_palette("husl")
-        
-        # Set up the figure with improved spacing and modern style
-        plt.rcParams.update({
-            'figure.constrained_layout.use': True,
-            'figure.constrained_layout.h_pad': 1.0,
-            'figure.constrained_layout.w_pad': 1.0,
-            'font.family': 'sans-serif',
-            'font.size': 12,
-            'axes.titlesize': 16,
-            'axes.labelsize': 14,
-            'xtick.labelsize': 12,
-            'ytick.labelsize': 12,
-            'axes.grid': True,
-            'grid.alpha': 0.2,
-            'axes.spines.top': False,
-            'axes.spines.right': False,
-            'axes.titleweight': 'bold',
-            'figure.facecolor': 'white',
-            'axes.facecolor': '#f8f9fa',
-            'axes.edgecolor': '#343a40',
-            'axes.labelcolor': '#343a40',
-            'xtick.color': '#343a40',
-            'ytick.color': '#343a40',
-            'grid.color': '#dee2e6'
-        })
-        
-        # Create figure with 2x2 subplots and better spacing
-        fig = plt.figure(figsize=(40, 30), constrained_layout=True)
-        gs = fig.add_gridspec(2, 2, hspace=1.0, wspace=0.6)
-        
-        # Increase font sizes for better readability
-        plt.rcParams.update({
-            'font.size': 16,
-            'axes.titlesize': 24,
-            'axes.labelsize': 20,
-            'xtick.labelsize': 16,
-            'ytick.labelsize': 16
-        })
-        # 1. Total Value Distribution
-        ax1 = fig.add_subplot(gs[0, 0])
-        sns.histplot(data=df, x='TOTAL_VALUE', bins=50, ax=ax1, color='#2ecc71', 
-                    edgecolor='white', alpha=0.8)
-        ax1.set_facecolor('#f8f9fa')
-        ax1.set_xscale('log')
-        ax1.set_title('Distribution of Property Values', pad=20, fontweight='bold')
-        ax1.set_xlabel('Property Value (Log Scale)')
-        ax1.set_ylabel('Number of Properties')
-        
-        # Helper function to format currency values
-        def format_currency(x):
-            if pd.isna(x):
-                return 'N/A'
-            if x >= 1e6:
-                return f'${x/1e6:.1f}M'
-            elif x >= 1e3:
-                return f'${x/1e3:.0f}K'
-            else:
-                return f'${x:.0f}'
-        
-        stats_text = f"""
-        Statistics:
-        Total Value (Median): {format_currency(df['TOTAL_VALUE'].median())}
-        Building Value (Median): {format_currency(df['BLDG_VALUE'].median())}
-        Land Value (Median): {format_currency(df['LAND_VALUE'].median())}
-        """
-        ax1.text(0.95, 0.95, stats_text,
-                transform=ax1.transAxes,
-                verticalalignment='top',
-                horizontalalignment='right',
-                bbox=dict(facecolor='white', alpha=0.8, edgecolor='#343a40', boxstyle='round,pad=0.5'),
-                fontsize=11)
-        
-        # Add median and mean lines with enhanced styling
-        median_val = df['TOTAL_VALUE'].median()
-        mean_val = df['TOTAL_VALUE'].mean()
-        ax1.axvline(x=median_val, color='#e74c3c', linestyle='--', alpha=0.8, linewidth=2, label='Median')
-        ax1.axvline(x=mean_val, color='#3498db', linestyle='--', alpha=0.8, linewidth=2, label='Mean')
-        ax1.legend()
-        self._format_axis_labels(ax1)
-        
-        # 2. Living Area vs Building Value 
-        ax2 = fig.add_subplot(gs[0, 1])
-        sns.scatterplot(data=df, x='LIVING_AREA', y='BLDG_VALUE', 
-                       alpha=0.5, ax=ax2)
-        ax2.set_title('Living Area vs Building Value', pad=20, fontweight='bold')
-        ax2.set_xlabel('Living Area (sq ft)')
-        ax2.set_ylabel('Building Value ($)')
-        
-        # Add trend line with formatted equation and error handling
         try:
-            # Filter out NaN and infinite values
-            mask = np.isfinite(df['LIVING_AREA']) & np.isfinite(df['BLDG_VALUE'])
-            if mask.sum() > 1:  # Need at least 2 points for linear fit
-                z = np.polyfit(df.loc[mask, 'LIVING_AREA'], 
-                             df.loc[mask, 'BLDG_VALUE'], 1)
-                p = np.poly1d(z)
-                price_per_sqft = z[0]
-                if price_per_sqft >= 1000:
-                    trend_label = f'Trend: ${price_per_sqft/1000:.1f}K/sq.ft'
-                else:
-                    trend_label = f'Trend: ${price_per_sqft:.0f}/sq.ft'
-                ax2.plot(df.loc[mask, 'LIVING_AREA'], 
-                        p(df.loc[mask, 'LIVING_AREA']), 
-                        linestyle='--', color='red', alpha=0.8,
-                        label=trend_label)
+            # Handle empty dataframe
+            if df.empty:
+                df['TOTAL_VALUE'] = pd.Series(dtype='float64')
+            else:
+                # Safely calculate total value if components exist
+                df['TOTAL_VALUE'] = 0  # Initialize with zeros
+                if 'BLDG_VALUE' in df.columns:
+                    df['TOTAL_VALUE'] += pd.to_numeric(df['BLDG_VALUE'], errors='coerce').fillna(0)
+                if 'LAND_VALUE' in df.columns:
+                    df['TOTAL_VALUE'] += pd.to_numeric(df['LAND_VALUE'], errors='coerce').fillna(0)
+                
+                # If no value columns exist, create empty total value
+                if 'BLDG_VALUE' not in df.columns and 'LAND_VALUE' not in df.columns:
+                    df['TOTAL_VALUE'] = pd.Series(dtype='float64')
+            
+            # Set style and create plots
+            plt.style.use('seaborn-v0_8-white')
+            sns.set_palette("husl")
+            
+            # Create and save the plots
+            fig = plt.figure(figsize=(40, 30))
+            plt.subplots_adjust(hspace=0.4, wspace=0.4)
+            
+            # Create all subplots
+            for i in range(4):
+                plt.subplot(2, 2, i+1)
+                if i == 0:  # Value distribution
+                    self._create_value_distribution_plot(df)
+                elif i == 1:  # Area vs Value
+                    self._create_area_value_plot(df)
+                elif i == 2:  # Room distribution
+                    self._create_room_distribution_plot(df)
+                else:  # Correlation matrix
+                    self._create_correlation_matrix(df)
+            
+            # Save the figure
+            plt.savefig(f'{self.output_dir}/feature_analysis.png', 
+                       dpi=300, bbox_inches='tight', facecolor='white')
+            plt.close()
+            
         except Exception as e:
-            logger.warning(f"Could not generate trend line: {str(e)}")
-        ax2.legend()
+            logger.error(f"Error generating plots: {str(e)}")
+            # Create a simple error plot
+            plt.figure(figsize=(10, 5))
+            plt.text(0.5, 0.5, f'Error generating plots: {str(e)}', 
+                    ha='center', va='center')
+            plt.savefig(f'{self.output_dir}/feature_analysis.png')
+            plt.close()
+    
+    def _create_value_distribution_plot(self, df):
+        """Create value distribution subplot"""
+        if not df['TOTAL_VALUE'].empty and df['TOTAL_VALUE'].notna().any():
+            sns.histplot(data=df, x='TOTAL_VALUE', bins=50, 
+                        color='#2ecc71', edgecolor='white')
+            plt.xscale('log')
+        else:
+            plt.text(0.5, 0.5, 'No value data available',
+                    ha='center', va='center', transform=plt.gca().transAxes)
+        plt.title('Property Value Distribution')
+        plt.xlabel('Total Value (log scale)')
+        plt.ylabel('Count')
+    
+    def _create_area_value_plot(self, df):
+        """Create area vs value subplot"""
+        if all(col in df.columns for col in ['LIVING_AREA', 'BLDG_VALUE']):
+            valid_mask = df['LIVING_AREA'].notna() & df['BLDG_VALUE'].notna()
+            if valid_mask.any():
+                sns.scatterplot(data=df[valid_mask], 
+                              x='LIVING_AREA', y='BLDG_VALUE')
+            else:
+                plt.text(0.5, 0.5, 'No valid data points',
+                        ha='center', va='center', transform=plt.gca().transAxes)
+        else:
+            plt.text(0.5, 0.5, 'Missing required columns',
+                    ha='center', va='center', transform=plt.gca().transAxes)
+        plt.title('Living Area vs Building Value')
+    
+    def _create_room_distribution_plot(self, df):
+        """Create room distribution subplot"""
+        room_cols = ['TT_RMS', 'BED_RMS']
+        room_data = {}
         
-        # 3. Room Analysis
-        ax3 = fig.add_subplot(gs[1, 0])
-        # Convert to integer before counting
-        df['TT_RMS'] = pd.to_numeric(df['TT_RMS'], errors='coerce').round().astype('Int64')
-        df['BED_RMS'] = pd.to_numeric(df['BED_RMS'], errors='coerce').round().astype('Int64')
-        room_data = pd.DataFrame({
-            'Total Rooms': df['TT_RMS'].value_counts().sort_index(),
-            'Bedrooms': df['BED_RMS'].value_counts().sort_index()
-        })
-        room_data.plot(kind='bar', ax=ax3, width=0.8)
-        ax3.set_title('Room Distribution', pad=20, fontweight='bold')
-        ax3.set_xlabel('Number of Rooms')
-        ax3.set_ylabel('Number of Properties')
-        ax3.legend(title='Room Type')
-        plt.setp(ax3.get_xticklabels(), rotation=45)
+        for col in room_cols:
+            if col in df.columns:
+                series = pd.to_numeric(df[col], errors='coerce')
+                if series.notna().any():
+                    room_data[col] = series.value_counts().sort_index()
         
-        # 4. Correlation Matrix
-        ax4 = fig.add_subplot(gs[1, 1])
+        if room_data:
+            pd.DataFrame(room_data).plot(kind='bar')
+            plt.title('Room Distribution')
+        else:
+            plt.text(0.5, 0.5, 'No room data available',
+                    ha='center', va='center', transform=plt.gca().transAxes)
+    
+    def _create_correlation_matrix(self, df):
+        """Create correlation matrix subplot"""
         numeric_cols = ['BLDG_VALUE', 'LAND_VALUE', 'LIVING_AREA', 'GROSS_AREA',
-                       'TT_RMS', 'BED_RMS', 'FULL_BTH', 'HLF_BTH', 'LAND_SF']
-        # Filter to only include columns that exist in the dataframe
+                       'TT_RMS', 'BED_RMS', 'FULL_BTH', 'HLF_BTH']
         available_cols = [col for col in numeric_cols if col in df.columns]
         
-        if len(available_cols) > 1:  # Need at least 2 columns for correlation
-            # Ensure numeric columns are float type
-            df_numeric = df[available_cols].apply(pd.to_numeric, errors='coerce')
-            # Calculate correlations
-            correlation = df_numeric.corr()
-            # Sort by correlation with BLDG_VALUE if it exists, otherwise take first column
-            sort_col = 'BLDG_VALUE' if 'BLDG_VALUE' in correlation.columns else correlation.columns[0]
-            sorted_cols = correlation[sort_col].abs().sort_values(ascending=False).index
-            correlation = correlation.loc[sorted_cols, sorted_cols]
-
-            # Create readable labels
-            label_map = {
-                'BLDG_VALUE': 'Building Value',
-                'LAND_VALUE': 'Land Value',
-                'LIVING_AREA': 'Living Area',
-                'GROSS_AREA': 'Gross Area',
-                'TT_RMS': 'Total Rooms',
-                'BED_RMS': 'Bedrooms',
-                'FULL_BTH': 'Full Baths',
-                'LAND_SF': 'Land Sq.Ft',
-                'HLF_BTH': 'Half Baths'
-            }
-            
-            # Create labels using only available columns
-            labels = [label_map.get(col, col) for col in correlation.columns]
-            
-            # Create correlation matrix with better labels
-            try:
-                sns.heatmap(correlation, 
-                           mask=np.triu(np.ones_like(correlation, dtype=bool)),
-                           annot=True,
-                           fmt='.2f',
-                           cmap='RdYlBu_r',
-                           center=0,
-                           ax=ax4,
-                           annot_kws={'size': 10},
-                           square=True,
-                           xticklabels=labels,
-                           yticklabels=labels,
-                           cbar_kws={'label': 'Correlation Coefficient'})
-            except Exception as e:
-                logger.warning(f"Could not generate heatmap: {str(e)}")
-                ax4.text(0.5, 0.5, 'Could not generate correlation matrix',
-                        ha='center', va='center')
+        if len(available_cols) > 1:
+            corr_df = df[available_cols].apply(pd.to_numeric, errors='coerce').corr()
+            sns.heatmap(corr_df, annot=True, cmap='coolwarm', center=0)
+            plt.title('Feature Correlations')
         else:
-            ax4.text(0.5, 0.5, 'Insufficient data for correlation matrix',
-                    ha='center', va='center')
-        
-        # Rotate labels for better fit
-        plt.setp(ax4.get_xticklabels(), rotation=45, ha='right')
-        plt.setp(ax4.get_yticklabels(), rotation=0)
-        ax4.set_title('Feature Correlation Matrix', pad=20, fontweight='bold')
-            
-        
-        # Save the combined figure
-        plt.savefig(f'{self.output_dir}/feature_analysis.png', dpi=300, facecolor='white')
-        plt.close()
+            plt.text(0.5, 0.5, 'Insufficient data for correlation',
+                    ha='center', va='center', transform=plt.gca().transAxes)
     
     def generate_feature_summary(self, df):
-        # Get feature categories
-        engineered_features = [
-            'price_per_sqft', 'land_value_ratio', 'building_value_ratio',
-            'property_age', 'age_category', 'total_bathrooms',
-            'non_living_area', 'living_area_ratio', 'has_renovation',
-            'years_since_renovation'
-        ]
-        
-        # Calculate basic statistics
-        summary = pd.DataFrame({
-            'Feature': df.columns,
-            'Type': df.dtypes,
-            'Missing_Values': df.isnull().sum(),
-            'Missing_Percentage': (df.isnull().sum() / len(df)) * 100,
-            'Unique_Values': df.nunique(),
-            'Mean': df.mean(numeric_only=True),
-            'Std': df.std(numeric_only=True),
-            'Min': df.min(numeric_only=True),
-            'Max': df.max(numeric_only=True)
-        })
-        
-        # Add feature category
-        summary['Category'] = 'Original'
-        summary.loc[summary['Feature'].isin(engineered_features), 'Category'] = 'Engineered'
-        
-        # Save detailed summary
-        summary.to_csv(f'{self.output_dir}/feature_summary.csv', index=False)
-        
-        # Create enhanced markdown report
+        """Generate feature summary statistics and reports"""
+        try:
+            if df.empty:
+                summary = pd.DataFrame(columns=['Feature', 'Type', 'Missing_Values', 
+                                             'Missing_Percentage', 'Unique_Values', 
+                                             'Mean', 'Std', 'Min', 'Max', 'Category'])
+            else:
+                # Get feature categories
+                engineered_features = [
+                    'price_per_sqft', 'land_value_ratio', 'building_value_ratio',
+                    'property_age', 'age_category', 'total_bathrooms',
+                    'non_living_area', 'living_area_ratio', 'has_renovation',
+                    'years_since_renovation'
+                ]
+                
+                # Calculate statistics
+                stats = {col: self._calculate_column_stats(df[col]) for col in df.columns}
+                
+                # Create summary DataFrame
+                summary = pd.DataFrame({
+                    'Feature': df.columns,
+                    'Type': df.dtypes,
+                    'Missing_Values': df.isnull().sum(),
+                    'Missing_Percentage': (df.isnull().sum() / len(df)) * 100,
+                    'Unique_Values': df.nunique(),
+                    'Mean': [stats[col]['mean'] for col in df.columns],
+                    'Std': [stats[col]['std'] for col in df.columns],
+                    'Min': [stats[col]['min'] for col in df.columns],
+                    'Max': [stats[col]['max'] for col in df.columns]
+                })
+                
+                # Add categories
+                summary['Category'] = 'Original'
+                summary.loc[summary['Feature'].isin(engineered_features), 'Category'] = 'Engineered'
+            
+            # Save summary to CSV
+            summary.to_csv(f'{self.output_dir}/feature_summary.csv', index=False)
+            
+            # Generate markdown report
+            self._generate_markdown_report(df, summary)
+            
+        except Exception as e:
+            logger.error(f"Error generating feature summary: {str(e)}")
+            # Create minimal summary
+            summary = pd.DataFrame({'Feature': ['Error'], 'Type': ['N/A']})
+            summary.to_csv(f'{self.output_dir}/feature_summary.csv', index=False)
+            
+            with open(f'{self.output_dir}/feature_report.md', 'w') as f:
+                f.write(f'# Error in Feature Analysis\n\nError: {str(e)}')
+    
+    def _calculate_column_stats(self, series):
+        """Calculate statistics for a column with proper error handling"""
+        try:
+            numeric_series = pd.to_numeric(series, errors='coerce')
+            return {
+                'mean': numeric_series.mean(),
+                'std': numeric_series.std(),
+                'min': numeric_series.min(),
+                'max': numeric_series.max()
+            }
+        except:
+            return {
+                'mean': np.nan,
+                'std': np.nan,
+                'min': np.nan,
+                'max': np.nan
+            }
+    
+    def _generate_markdown_report(self, df, summary):
+        """Generate markdown report with proper formatting"""
         with open(f'{self.output_dir}/feature_report.md', 'w') as f:
             f.write('# Feature Analysis Report\n\n')
             
             # Dataset Overview
             f.write('## Dataset Overview\n')
-            f.write('### Data Structure\n')
-            f.write(f'- Total Variables: {len(df.columns)}\n')
-            f.write(f'- Total Samples: {len(df)}\n\n')
+            f.write(f'- Total Features: {len(df.columns)}\n')
+            f.write(f'- Total Samples: {len(df)}\n')
+            f.write(f'- Original Features: {len(summary[summary.Category == "Original"])}\n')
+            f.write(f'- Engineered Features: {len(summary[summary.Category == "Engineered"])}\n\n')
             
-            f.write('### Variable Types\n')
-            f.write(f'- Input Features: {len(df.columns) - 1}\n')  # Assuming one target column
-            f.write(f'  - Raw Features: {len(summary[summary.Category == "Original"])}\n')
-            f.write(f'  - Engineered Features: {len(summary[summary.Category == "Engineered"])}\n')
-            f.write(f'- Target Variable: 1\n\n')
-            
-            f.write('### Data Types\n')
-            f.write(f'- Numerical Variables: {len(df.select_dtypes(include=["int64", "float64"]).columns)}\n')
-            f.write(f'- Categorical Variables: {len(df.select_dtypes(include=["object", "category"]).columns)}\n\n')
-            
-            # Missing Values Analysis
-            f.write('## Missing Values Analysis\n')
-            missing = summary[summary['Missing_Values'] > 0].sort_values('Missing_Percentage', ascending=False)
+            # Missing Values
+            missing = summary[summary['Missing_Values'] > 0]
             if not missing.empty:
-                f.write('### Features with Missing Values (Sorted by Percentage)\n')
-                f.write(missing[['Feature', 'Category', 'Missing_Values', 'Missing_Percentage']].to_markdown() + '\n\n')
-            else:
-                f.write('No missing values found in the dataset.\n\n')
+                f.write('## Missing Values\n')
+                missing_table = missing[['Feature', 'Missing_Values', 'Missing_Percentage']]
+                missing_table['Missing_Percentage'] = missing_table['Missing_Percentage'].map('{:.1f}%'.format)
+                f.write(missing_table.to_markdown(index=False) + '\n\n')
             
-            # Numerical Features Analysis
-            f.write('## Numerical Features Analysis\n')
-            numerical = summary[summary['Type'].isin(['int64', 'float64'])].sort_values('Category')
-            if not numerical.empty:
-                for category in ['Original', 'Engineered']:
-                    cat_numerical = numerical[numerical['Category'] == category]
-                    if not cat_numerical.empty:
-                        f.write(f'### {category} Numerical Features\n')
-                        stats_table = cat_numerical[['Feature', 'Mean', 'Std', 'Min', 'Max', 'Missing_Percentage']]
-                        stats_table = stats_table.round(2)
-                        f.write(stats_table.to_markdown() + '\n\n')
-            
-            # Categorical Features Analysis
-            categorical = summary[summary['Type'] == 'object'].sort_values('Category')
-            if not categorical.empty:
-                f.write('## Categorical Features Analysis\n')
-                for category in ['Original', 'Engineered']:
-                    cat_categorical = categorical[categorical['Category'] == category]
-                    if not cat_categorical.empty:
-                        f.write(f'### {category} Categorical Features\n')
-                        f.write(cat_categorical[['Feature', 'Unique_Values', 'Missing_Percentage']].to_markdown() + '\n\n')
+            # Numeric Features
+            numeric_cols = summary[summary['Type'].isin(['int64', 'float64'])]
+            if not numeric_cols.empty:
+                f.write('## Numeric Features\n')
+                numeric_table = numeric_cols[['Feature', 'Mean', 'Std', 'Min', 'Max']]
+                for col in ['Mean', 'Std', 'Min', 'Max']:
+                    numeric_table[col] = numeric_table[col].apply(lambda x: 
+                        f'{x:,.2f}' if pd.notnull(x) else 'N/A')
+                f.write(numeric_table.to_markdown(index=False) + '\n\n')
     
     def generate_all_reports(self, df):
-        self.generate_combined_plots(df)
-        self.generate_feature_summary(df)
+        """Generate all reports with error handling"""
+        try:
+            self.generate_combined_plots(df)
+            self.generate_feature_summary(df)
+        except Exception as e:
+            logger.error(f"Error generating reports: {str(e)}")
+            # Create error report
+            with open(f'{self.output_dir}/error_report.md', 'w') as f:
+                f.write(f'# Error Generating Reports\n\nError: {str(e)}')

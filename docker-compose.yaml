@@ -18,6 +18,17 @@ x-airflow-common:
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
     PYTHONPATH: '/opt/airflow'
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
+    # Gmail SMTP Configuration
+    AIRFLOW__SMTP__SMTP_HOST: smtp.gmail.com
+    AIRFLOW__SMTP__SMTP_STARTTLS: "true"
+    AIRFLOW__SMTP__SMTP_SSL: "false"
+    AIRFLOW__SMTP__SMTP_USER: ${AIRFLOW__SMTP__SMTP_USER:-sshivaditya@gmail.com}
+    AIRFLOW__SMTP__SMTP_PASSWORD: ${AIRFLOW__SMTP__SMTP_PASSWORD}
+    AIRFLOW__SMTP__SMTP_PORT: ${AIRFLOW__SMTP__SMTP_PORT:-587}
+    AIRFLOW__SMTP__SMTP_MAIL_FROM: ${AIRFLOW__SMTP__SMTP_MAIL_FROM:-sshivaditya@gmail.com}
+    AIRFLOW__SMTP__SMTP_TIMEOUT: ${AIRFLOW__SMTP__SMTP_TIMEOUT:-30}
+    AIRFLOW__SMTP__SMTP_RETRY_LIMIT: ${AIRFLOW__SMTP__SMTP_RETRY_LIMIT:-5}
+    AIRFLOW__EMAIL__EMAIL_BACKEND: airflow.utils.email.send_email_smtp
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
@@ -186,8 +197,12 @@ services:
         fi
         mkdir -p /sources/logs /sources/dags /sources/plugins /sources/data
         chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins,data}
-        # Set group write permissions for data directory and its contents
-        chmod -R 775 /sources/data
+        # Set group write permissions for logs and data directories
+        chmod -R 775 /sources/data /sources/logs
+        # Create and set permissions for Airflow logs directory
+        mkdir -p /opt/airflow/logs
+        chown -R "${AIRFLOW_UID}:0" /opt/airflow/logs
+        chmod -R 775 /opt/airflow/logs
         exec /entrypoint airflow version
     environment:
       <<: *airflow-common-env

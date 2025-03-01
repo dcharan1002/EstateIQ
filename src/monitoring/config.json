@@ -1,0 +1,21 @@
+{
+    "missing_threshold": 0.1,
+    "numeric_bounds": {
+        "TOTAL_VALUE": {
+            "min": 50000,
+            "max": 5000000
+        },
+        "GROSS_AREA": {
+            "min": 100,
+            "max": 20000
+        },
+        "LAND_VALUE": {
+            "min": 10000,
+            "max": 2000000
+        },
+        "BLDG_VALUE": {
+            "min": 10000,
+            "max": 3000000
+        }
+    }
+}

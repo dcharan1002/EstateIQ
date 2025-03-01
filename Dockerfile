@@ -6,8 +6,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /sources/data/{raw,processed,monitoring,features} \
     && mkdir -p /sources/data/processed/{clean,engineered} \
-    && chown -R airflow:root /sources \
-    && chmod -R 775 /sources
+    && mkdir -p /opt/airflow/logs \
+    && chown -R airflow:root /sources /opt/airflow/logs \
+    && chmod -R 775 /sources /opt/airflow/logs
 USER airflow
 RUN echo -e "AIRFLOW_UID=$(id -u)" > .env
 COPY --chown=airflow:root requirements.txt /

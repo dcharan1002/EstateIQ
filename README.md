@@ -56,12 +56,6 @@ venv\Scripts\activate     # Windows
 pip install -r requirements.txt
 ```
 
-### Docker Setup
-1. Build and start services:
-```bash
-docker-compose up --build
-```
-
 ## Data Pipeline
 
 ### 1. Data Preprocessing
@@ -91,15 +85,8 @@ Generated features include:
 ### Running Tests
 ```bash
 # Run all tests with coverage
-pytest
-
-# Run specific test file
-pytest tests/test_core.py
-
-# Run specific test
-pytest tests/test_core.py::test_identify_column_types_basic
+python -m pytest
 ```
-
 ## Airflow Integration
 
 ### DAG Structure
@@ -109,34 +96,124 @@ The main DAG (`dags/main_dag.py`) includes:
 3. Feature engineering
 4. Quality reporting
 
-### Monitoring
-Access Airflow UI at http://localhost:8080:
-- Username: airflow2
-- Password: airflow2
 
-## Data Version Control
+## Configuration Guide
 
-### Track Data Changes
+### Environment Variables
+Create a `.env` file in the project root with the following configurations:
 ```bash
-# Update pipeline
-dvc repro
+# Airflow Default User
+_AIRFLOW_WWW_USER_USERNAME=airflow2
+_AIRFLOW_WWW_USER_PASSWORD=airflow2
+```
 
-# Push to remote storage
+### Email Setup with Google App Password
+1. Generate App Password for SMTP:
+   - Visit https://support.google.com/accounts/answer/185833
+   - Sign in to your Google Account
+   - Go to Security settings
+   - Enable 2-Step Verification if not already enabled
+   - Under "App passwords", select "Mail" and your device
+   - Use the generated 16-character password as AIRFLOW__SMTP__SMTP_PASSWORD
+
+2. Configure email notifications in `.env`:
+```bash
+# Email Configuration
+AIRFLOW__SMTP__SMTP_MAIL_FROM=your_email@gmail.com
+AIRFLOW__SMTP__SMTP_PASSWORD=your_generated_app_password
+```
+
+### Docker Build Process
+2. Build and tag the image:
+```bash
+# Build with cache
+docker build -t estateiq:latest .
+
+# Force clean build
+docker build --no-cache -t estateiq:latest .
+
+# Directly run the container
+docker componse build && docker-compose up
+```
+
+### DVC Data Management
+
+1. Configure GCP authentication:
+```bash
+# Verify authentication
+gcloud auth login
+```
+
+#### Data Versioning
+```bash
+# Track and push data
 dvc push
+
+# Pull data from GCP bucket
+dvc pull
 ```
 
-## Docker Usage
+Note: Prior authentication with GCP is required to access the bucket storage. Ensure you have the necessary permissions and credentials configured.
 
-### Running Services
-```bash
-# Start all services
-docker-compose up
+## Implementation Status
 
-# Run specific service
-docker-compose up airflow-webserver
+### 1. Proper Documentation
+- Clear README with project structure, features, and setup instructions
+- Well-documented code with comprehensive docstrings
 
-# Stop services
-docker-compose down
-```
-## License
-MIT License - see LICENSE file for details
+### 2. Modular Syntax and Code
+- Preprocessing modules separated by functionality (cleaning.py, core.py, features.py)
+- Reusable functions and classes with clear interfaces
+- Consistent code style and organization
+
+### 3. Pipeline Orchestration (Airflow DAGs)
+- Main DAG with clear task dependencies
+- Error handling and notifications
+- Email alerts for task failures
+- Success/failure callbacks implemented
+
+### 4. Tracking and Logging
+- Comprehensive logging system in logger.py
+- Rotating file handlers for log management
+- Console and file logging
+- Email notifications for critical errors
+
+### 5. Data Version Control (DVC)
+- DVC initialized with Google Cloud Storage remote
+- Data versioning configured
+- Clear data directory structure
+- .gitignore and .dvcignore properly configured
+
+### 6. Pipeline Flow Optimization
+- Efficient task dependencies in DAG
+- Parallel execution where possible
+- Monitoring for bottlenecks
+- Task failure handling and retries
+
+### 7. Schema and Statistics Generation
+- Feature reporting system
+- Data quality monitoring
+- Automated statistics generation
+- Data validation checks
+
+### 8. Anomalies Detection and Alert Generation
+- DataQualityMonitor class for anomaly detection
+- Configurable thresholds for outliers
+- Missing value detection
+- Alert system for data quality issues
+
+### 9. Bias Detection and Mitigation
+- Intentionally preserve demographic and location-based patterns
+- This retention is necessary for generating accurate market-reflective property values
+
+### 10. Test Modules
+- Comprehensive test suite
+- Unit tests for all key components
+- Test fixtures for common scenarios
+- Edge case testing
+
+### 11. Error Handling and Logging
+- Robust error handling throughout
+- Clear error messages
+- Comprehensive logging
+- Email notifications for critical errors
