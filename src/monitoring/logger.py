@@ -112,43 +112,28 @@ class AlertManager:
         self.logger = logger
         
     def send_email_alert(self, subject: str, body: str):
-        """Send email alert, gracefully handling missing email configuration"""
+        """Send email alert using Airflow's email system"""
         try:
-            # First try SendGrid if available
-            try:
-                from airflow.providers.sendgrid.utils.emailer import send_email
-                from airflow.hooks.base import BaseHook
-                
-                # Check if SendGrid connection exists
-                try:
-                    BaseHook.get_connection('sendgrid_default')
-                    has_sendgrid = True
-                except:
-                    has_sendgrid = False
-                    
-                if has_sendgrid:
-                    # Get recipients from Airflow config
-                    from airflow.configuration import conf
-                    recipients = conf.get('email', 'email_backend_recipients', fallback='').split(',')
-                    
-                    if recipients:
-                        send_email(
-                            to=recipients,
-                            subject=subject,
-                            html_content=body.replace('\n', '<br>'),
-                            categories=['data_pipeline_alert']
-                        )
-                        self.logger.info(f"Alert email sent via SendGrid: {subject}")
-                        return
-            except ImportError:
-                pass
-                
-            # If SendGrid not available, log alert only
-            self.logger.warning(
-                "Email alerts not configured. Alert content:\n"
-                f"Subject: {subject}\n"
-                f"Body: {body}"
+            from airflow.operators.email import EmailOperator
+            from airflow.configuration import conf
+            
+            # Get recipients from Airflow config
+            recipients = conf.get('email', 'email_backend_recipients', 
+                                fallback='sshivaditya@gmail.com').split(',')
+            
+            # Create and execute email operator
+            email_op = EmailOperator(
+                task_id='send_alert_email',
+                to=recipients,
+                subject=subject,
+                html_content=f"""
+                    <h3>{subject}</h3>
+                    <p>{body.replace(chr(10), '<br>')}</p>
+                """,
+                dag=None  # No DAG context needed for direct execution
             )
+            email_op.execute(context={})
+            self.logger.info(f"Alert email sent: {subject}")
             
         except Exception as e:
             self.logger.warning(

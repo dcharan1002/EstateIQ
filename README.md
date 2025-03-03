@@ -2,9 +2,85 @@
 
 A robust data preprocessing pipeline for property data with feature engineering, data validation, and automated workflows.
 
-## Project Structure
+## Environment Setup Instructions
+
+1. **Prerequisites**
+   - Docker and Docker Compose
+   - Python 3.x
+   - Git
+   - DVC
+
+2. **Local Setup**
+   ```bash
+   # Clone the repository
+   git clone git@github.com:sshivaditya/EstateIQ.git
+   cd EstateIQ
+
+   # Create and activate virtual environment
+   python -m venv venv
+   source venv/bin/activate  # Linux/Mac
+   venv\Scripts\activate     # Windows
+
+   # Install dependencies
+   pip install -r requirements.txt
+   ```
+
+3. **Docker Setup**
+   ```bash
+   # Build the Docker image
+   docker build -t estateiq:latest .
+
+   # Start services with Docker Compose
+   docker compose up -d
+   ```
+
+4. **Environment Configuration**
+   Create a `.env` file:
+   ```bash
+   # Airflow credentials
+   _AIRFLOW_WWW_USER_USERNAME=airflow2
+   _AIRFLOW_WWW_USER_PASSWORD=airflow2
+
+   # Email Configuration (required for alerts)
+   AIRFLOW__SMTP__SMTP_MAIL_FROM=your_email@gmail.com
+   AIRFLOW__SMTP__SMTP_PASSWORD=your_app_password
+   ```
+
+   For the email configuration, you need to generate an app password from your email provider. Here are the instructions for [Gmail](https://support.google.com/mail/answer/185833?hl=en).
+
+   For setting up Google Cloud Storage, you would need to set up a service account and download the JSON key file. You can set the environment variable `GOOGLE_APPLICATION_CREDENTIALS` to the path of the JSON key file. This will work if you have access to the Google Cloud Storage bucket.
+
+   For setting up DVC with Google Cloud Storage, you need to set up the environment variables `GOOGLE_APPLICATION_CREDENTIALS` and `GOOGLE_PROJECT_ID` to the path of the JSON key file and the project ID respectively. And then change the dvc remote config as well.
+
+## Pipeline Execution Steps
+
+1. **Docker Build**
+   ```bash
+   docker compose build
+   ```
+
+2. **Start the container**
+   ```bash
+   docker compose up
+   ```
+
+   The pipeline executes the following steps:
+   1. Downloads Boston housing data
+   2. Cleans and preprocesses the data
+   3. Engineers features
+   4. Generates feature reports
+   5. Saves final processed datasets
+
+3. **Monitor Pipeline**
+   - Access Airflow UI: http://localhost:8080
+   - Monitor logs in `logs/` directory
+   - Check feature reports in `data/features/`
+
+## Code Structure
+
 ```
 ├── dags/               # Airflow DAG definitions
+│   └── main_dag.py    # Main pipeline DAG
 ├── data/              # Data directories
 │   ├── raw/          # Original, immutable data
 │   ├── processed/    # Cleaned and transformed data
@@ -13,212 +89,108 @@ A robust data preprocessing pipeline for property data with feature engineering,
 │   ├── features/     # Extracted features
 │   └── final/        # Final processed datasets
 ├── src/              # Source code
-│   ├── data/        # Data acquisition scripts
-│   └── preprocessing/# Data preprocessing modules
-│       ├── cleaning.py     # Data cleaning functions
-│       ├── core.py        # Core preprocessing utilities
-│       ├── features.py    # Feature engineering
-│       └── reporting.py   # Data quality reporting
+│   ├── data/        
+│   │   └── download.py     # Data acquisition
+│   ├── monitoring/
+│   │   ├── config.json    # Monitoring configuration
+│   │   └── logger.py      # Logging setup
+│   └── preprocessing/     # Data preprocessing modules
+│       ├── cleaning.py    # Data cleaning functions
+│       ├── core.py       # Core preprocessing utilities
+│       ├── features.py   # Feature engineering
+│       └── reporting.py  # Data quality reporting
 ├── tests/            # Test suite
-├── docker-compose.yaml    # Docker services configuration
+├── docker-compose.yaml    # Docker services config
 ├── Dockerfile            # Docker build instructions
 ├── dvc.yaml             # DVC pipeline definition
 └── requirements.txt      # Python dependencies
 ```
 
-## Key Features
-- Automated data cleaning and preprocessing
-- Feature engineering for property data
-- Data validation and quality checks
-- Containerized environment
-- Airflow workflow automation
-- DVC data versioning
-- Comprehensive test coverage
+### Key Components
 
-## Installation
+1. **Data Processing Modules**
+   - `cleaning.py`: Handles missing values, outliers, duplicates
+   - `core.py`: Core preprocessing utilities
+   - `features.py`: Feature engineering functions
+   - `reporting.py`: Data quality reporting
 
-### Local Setup
-1. Clone the repository:
-```bash
-git clone git@github.com:sshivaditya/EstateIQ.git
-cd EstateIQ
-```
+2. **Pipeline Orchestration**
+   - Airflow DAG with email notifications
+   - Error handling and monitoring
+   - Data quality checks
 
-2. Create and activate virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-venv\Scripts\activate     # Windows
-```
-
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-### Docker Setup
-```bash
-# Build with cache
-docker build -t estateiq:latest .
-
-# Force clean build
-docker build --no-cache -t estateiq:latest .
-
-# Run with Docker Compose
-docker compose build && docker compose up
-```
-
-## Pipeline Components
-
-### 1. Data Preprocessing
-- Property condition standardization
-- Address parsing and normalization
-- Spatial feature generation
-- Property age calculations
-
-### 2. Feature Engineering
-- Property age categories
-- Distance to city center
-- Price per square foot
-- Land value ratios
-- Room statistics
-
-### 3. Quality Control
-- Data validation checks
-- Missing value handling
-- Outlier detection
-- Data type consistency
-- Anomaly detection with configurable thresholds
-- Bias detection and pattern preservation
-
-## Development
-
-### Running Tests
-```bash
-# Run all tests with coverage
-python -m pytest
-```
-
-## Configuration
-
-### Environment Variables
-Create a `.env` file in the project root:
-```bash
-# Airflow Default User
-_AIRFLOW_WWW_USER_USERNAME=airflow2
-_AIRFLOW_WWW_USER_PASSWORD=airflow2
-
-# Email Configuration
-AIRFLOW__SMTP__SMTP_MAIL_FROM=your_email@gmail.com
-AIRFLOW__SMTP__SMTP_PASSWORD=your_generated_app_password
-```
-
-### Email Notifications
-1. Generate App Password for SMTP:
-   - Visit https://support.google.com/accounts/answer/185833
-   - Sign in to your Google Account
-   - Enable 2-Step Verification if needed
-   - Under "App passwords", select "Mail" and your device
-   - Use the generated password as AIRFLOW__SMTP__SMTP_PASSWORD
-
-## Workflow Automation
-
-### Airflow DAG Structure
-The main DAG (`dags/main_dag.py`) orchestrates:
-1. Data download
-2. Data cleaning
-3. Feature engineering
-4. Quality reporting
-
-### Error Handling and Logging
-- Comprehensive logging system in logger.py
-- Rotating file handlers
-- Email notifications for critical errors
-- Task failure handling and retries
+3. **Monitoring & Logging**
+   - Comprehensive logging system
+   - Data quality monitoring
+   - Email alerts for failures
 
 ## Data Version Control (DVC)
 
-### Setup with Google Cloud Storage
-1. Install Google Cloud SDK from https://cloud.google.com/sdk/docs/install
-2. Configure authentication:
-```bash
-gcloud auth login
-```
+1. **Data Pipeline Stages**
+   DVC Stores data files and pipeline stages:
+   - `data/raw/`: Original data files
+   - `data/processed/`: Cleaned and transformed data
+   - `data/features/`: Extracted features
+   - `data/final/`: Final processed datasets
 
-### Usage
-```bash
-# Track and commit changes
-dvc commit
 
-# Push data to GCP bucket
-dvc push
+2. **DVC Commands**
+   ```bash
+   # Remove the exsisitng DVC Remote
+   dvc remote remove myremote
 
-# Pull data from GCP bucket
-dvc pull
-```
+   # Add a new DVC Remote
+   dvc remote add -d myremote gs://estateiq-data
 
-Note: Ensure you have proper GCP authentication and permissions configured before using DVC with Google Cloud Storage.
+   # Run the Workflow
 
+   # Add the data files to DVC
+   dvc commit
+
+   # Push the data to the remote
+   dvc push
+
+   ```
+
+3. **Reproducibility**
+   - All data transformations are tracked
+   - Dependencies are captured in `dvc.lock`
+   - Data versioning with DVC ensures reproducible results
+   - Feature reports provide insights into data transformations
 
 ## Implementation Status
 
-### 1. Proper Documentation
-- Clear README with project structure, features, and setup instructions
-- Well-documented code with comprehensive docstrings
+### Progress:
 
-### 2. Modular Syntax and Code
-- Preprocessing modules separated by functionality (cleaning.py, core.py, features.py)
-- Reusable functions and classes with clear interfaces
-- Consistent code style and organization
+#### 1. Proper Documentation
+Added a ReadME with the project structure. We have added docstring in all the relevant code blocks.
 
-### 3. Pipeline Orchestration (Airflow DAGs)
-- Main DAG with clear task dependencies
-- Error handling and notifications
-- Email alerts for task failures
-- Success/failure callbacks implemented
+#### 2. Modular Syntax and Code
+We separated the code into different files for tasks like cleaning, core functions, and feature engineering.
 
-### 4. Tracking and Logging
-- Comprehensive logging system in logger.py
-- Rotating file handlers for log management
-- Console and file logging
-- Email notifications for critical errors
+#### 3. Pipeline Orchestration (Airflow DAGs)
+We built the main DAG with clear task dependencies. We added error handling and notifications, including email alerts for task failures. We also implemented success and failure callbacks.
 
-### 5. Data Version Control (DVC)
-- DVC initialized with Google Cloud Storage remote
-- Data versioning configured
-- Clear data directory structure
-- .gitignore and .dvcignore properly configured
+#### 4. Tracking and Logging
+We set up a detailed logging system in logger.py. We made sure the logs are saved to files and displayed on the console. We also added email alerts for critical errors.
 
-### 6. Pipeline Flow Optimization
-- Efficient task dependencies in DAG
-- Parallel execution where possible
-- Monitoring for bottlenecks
-- Task failure handling and retries
+#### 5. Data Version Control (DVC)
+We initialized DVC with Google Cloud Storage as the remote. We configured data versioning and made sure the data folder structure is similar to one mentioned in the assignment. We also set up the .gitignore and .dvcignore files properly.
 
-### 7. Schema and Statistics Generation
-- Feature reporting system
-- Data quality monitoring
-- Automated statistics generation
-- Data validation checks
+#### 6. Pipeline Flow Optimization
+We optimized task dependencies in the DAG, ensuring tasks run in parallel when possible. 
 
-### 8. Anomalies Detection and Alert Generation
-- DataQualityMonitor class for anomaly detection
-- Configurable thresholds for outliers
-- Missing value detection
-- Alert system for data quality issues
+#### 7. Schema and Statistics Generation
+We implemented a system to generate feature reports and monitor data quality. Automatic statistics generation and data validation has been added, where system creates feature reports for the data and stores them in the Google Cloud Storage.
 
-### 9. Bias Detection and Mitigation
-- Intentionally preserve demographic and location-based patterns
-- This retention is necessary for generating accurate market-reflective property values
+#### 8. Anomalies Detection and Alert Generation
+We created the DataQualityMonitor class to detect anomalies, with configurable thresholds for outliers and missing values. We set up alerts to notify us of any data quality issues.
 
-### 10. Test Modules
-- Comprehensive test suite
-- Unit tests for all key components
-- Test fixtures for common scenarios
-- Edge case testing
+#### 9. Bias Detection and Mitigation
+We made sure to preserve key demographic and location-based patterns so property values are accurate and reflect the market properly.
 
-### 11. Error Handling and Logging
-- Robust error handling throughout
-- Clear error messages
-- Comprehensive logging
-- Email notifications for critical errors
+#### 10. Test Modules
+We built a comprehensive set of tests, including unit tests for all key components. Test fixtures for common scenarios have been implemented.
+
+#### 11. Error Handling and Logging
+We implemented strong error handling throughout the project and added clear error messages. We set up logging for all errors and email alerts for critical issues.
