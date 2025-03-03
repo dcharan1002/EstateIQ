@@ -136,15 +136,15 @@ A robust data preprocessing pipeline for property data with feature engineering,
 
 2. **DVC Commands**
    ```bash
-   # Remove the exsisitng DVC Remote
+   # Remove the exsisitng DVC Remote (If you want to set up a new remote)
    dvc remote remove myremote
 
-   # Add a new DVC Remote
+   # Add a new DVC Remote (Google Cloud Storage or any other provider)
    dvc remote add -d myremote gs://estateiq-data
 
    # Run the Workflow
 
-   # Add the data files to DVC
+   # Add the data files to DVC 
    dvc commit
 
    # Push the data to the remote
