@@ -1,146 +1,144 @@
 import pandas as pd
-from pathlib import Path
 import numpy as np
-from sklearn.model_selection import train_test_split,  RandomizedSearchCV
-from sklearn.metrics import mean_squared_error, r2_score
-from xgboost import XGBRegressor
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+from xgboost import XGBRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import RandomizedSearchCV
+import xgboost as xgb
 
-# Step 1: Load the final processed data
+
 def load_data():
-    # Define data directory
-    FINAL_DATA_DIR = Path("Data/final")
-
     # Load data sets
-    X_train = pd.read_csv(FINAL_DATA_DIR / "X_train.csv")
-    X_test = pd.read_csv(FINAL_DATA_DIR / "X_test.csv")
-    y_train = pd.read_csv(FINAL_DATA_DIR / "y_train.csv").squeeze()
-    y_test = pd.read_csv(FINAL_DATA_DIR / "y_test.csv").squeeze()
-
-    # Identify columns with object (non-numeric) data types in both train and test
-    mixed_type_columns = set(X_train.select_dtypes(include=['object']).columns) | set(X_test.select_dtypes(include=['object']).columns)
-
-    # Drop these columns from both train and test
-    X_train = X_train.drop(columns=mixed_type_columns)
-    X_test = X_test.drop(columns=mixed_type_columns)
-
-    print(f"Dropped columns: {mixed_type_columns}")
-    
+    # Choose the fie location
+    X_train = pd.read_csv(r"C:\Users\dchar\OneDrive\Desktop\Project\EstateIQ\data\final\X_train.csv", low_memory=False)
+    X_test = pd.read_csv(r"C:\Users\dchar\OneDrive\Desktop\Project\EstateIQ\data\final\X_test.csv", low_memory=False)
+    y_train = pd.read_csv(r"C:\Users\dchar\OneDrive\Desktop\Project\EstateIQ\data\final\y_train.csv").squeeze()
+    y_test = pd.read_csv(r"C:\Users\dchar\OneDrive\Desktop\Project\EstateIQ\data\final\y_test.csv").squeeze()  
     return X_train, X_test, y_train, y_test
 
-# Step 2: Split data further into training and validation sets
-def split_data(X_train, y_train):
-    # Split the training data into training and validation sets
-    X_train_final, X_val, y_train_final, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
-    return X_train_final, X_val, y_train_final, y_val
+def cleaning(X_train,X_test):
+    X_train_encoded = X_train.copy()
+    X_test_encoded = X_test.copy()
+    cat_cols = X_train.select_dtypes(include='object').columns
+    for col in cat_cols:
+        le = LabelEncoder()
+        le.fit(pd.concat([X_train[col], X_test[col]], axis=0).astype(str))
+        X_train_encoded[col] = le.transform(X_train[col].astype(str))
+        X_test_encoded[col] = le.transform(X_test[col].astype(str))
+    return X_train_encoded,X_test_encoded
 
-# Step 3: Define Models
-def define_models():
-    # Define pipeline for XGBoost model
-    xgb_model = Pipeline([
-        ('scaler', StandardScaler()),  # Feature Scaling
-        ('model', XGBRegressor(objective='reg:squarederror', random_state=42))
-    ])
-    
-    # Define pipeline for Random Forest model
-    rf_model = Pipeline([
-        ('scaler', StandardScaler()),  # Feature Scaling
-        ('model', RandomForestRegressor(random_state=42))
-    ])
-    
-    return xgb_model, rf_model
 
-# Step 4: Train and Evaluate Model using Hold-Out Validation Set
-def evaluate_model_with_holdout(pipeline, X_train, y_train, X_val, y_val):
-    """Trains and evaluates the model using hold-out validation set."""
-    pipeline.fit(X_train, y_train)
-    y_val_pred = pipeline.predict(X_val)
-    
-    mse = mean_squared_error(y_val, y_val_pred)
-    rmse = np.sqrt(mse)
-    r2 = r2_score(y_val, y_val_pred)
-    
-    return mse, rmse, r2
+def define_models(X_train_encoded,X_test_encoded,y_train,y_test):
+# XGBoost Model
+    xgb_model = XGBRegressor(
+    n_estimators=100,
+    random_state=42,
+    verbosity=0,
+    enable_categorical=True
+    )
+# Ensure categorical columns are properly marked
+    X_train_encoded['BLDG_TYPE'] = X_train_encoded['BLDG_TYPE'].astype('category')
+    X_test_encoded['BLDG_TYPE'] = X_test_encoded['BLDG_TYPE'].astype('category')
+    xgb_model.fit(X_train_encoded, y_train)
+# Extract feature importance
+    xgb_importances = pd.Series(xgb_model.feature_importances_, index=X_train_encoded.columns)
+    top_15_xgb_features = xgb_importances.sort_values(ascending=False).head(15)
+    print("Top 15 Features from XGBoost:\n", top_15_xgb_features)
+# Random forest model    
+    rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf_model.fit(X_train_encoded, y_train)
+# Extract feature importance
+    feature_importances = pd.Series(rf_model.feature_importances_, index=X_train_encoded.columns)
+    top_15_rf_features = feature_importances.sort_values(ascending=False).head(15)
+    print("Top 15 Features from Random Forest:\n", top_15_rf_features)
+    X_train_selected = X_train_encoded[top_15_rf_features.index]
+    X_test_selected = X_test_encoded[top_15_rf_features.index]
+# Model Evaluation
+    X_train_selected = X_train_encoded[top_15_rf_features.index]
+    X_test_selected = X_test_encoded[top_15_rf_features.index]
 
-# Step 5: Perform Hyperparameter Tuning using RandomizedSearchCV
-def hyperparameter_tuning(rf_pipeline, xgb_pipeline, X_train_final, y_train_final):
-    # Hyperparameter grid for Random Forest Regressor
-    rf_param_dist = {
-        'model__n_estimators': [50, 100, 200, 300],
-        'model__max_depth': [None, 10, 20, 30, 40],
-        'model__min_samples_split': [2, 5, 10],
-        'model__min_samples_leaf': [1, 2, 4],
-        'model__bootstrap': [True, False]
+    rf_model.fit(X_train_selected, y_train)
+    rf_preds = rf_model.predict(X_test_selected)
+
+    xgb_model.fit(X_train_selected, y_train)
+    xgb_preds = xgb_model.predict(X_test_selected)
+    # Evaluate Both Models
+    evaluate_model("Random Forest", y_test, rf_preds)
+    evaluate_model("XGBoost", y_test, xgb_preds)
+    return X_train_selected,X_test_selected
+
+
+def evaluate_model(Model_name, y_true, y_pred):
+    print(f"\n {Model_name} Evaluation:")
+    print("R² Score       :", r2_score(y_true, y_pred))
+    print("MAE            :", mean_absolute_error(y_true, y_pred))
+    print("MSE            :", mean_squared_error(y_true, y_pred))
+    print("RMSE           :", np.sqrt(mean_squared_error(y_true, y_pred)))
+
+
+def hyperparameter_tuning(X_train_selected,X_test_selected,y_train,y_test):
+    # Define parameter grids
+    rf_param_grid = {
+    'n_estimators': [100, 200, 500],
+    'max_depth': [None, 10, 20, 30],
+    'min_samples_split': [2, 5, 10],
+    'min_samples_leaf': [1, 2, 4],
+    'bootstrap': [True, False]
     }
 
-    # Hyperparameter grid for XGBoost Regressor
-    xgb_param_dist = {
-        'model__n_estimators': [100, 200, 300],
-        'model__learning_rate': [0.01, 0.05, 0.1, 0.2],
-        'model__max_depth': [3, 5, 7, 10],
-        'model__subsample': [0.7, 0.8, 0.9, 1.0],
-        'model__colsample_bytree': [0.6, 0.8, 1.0]
+    xgb_param_grid = {
+    'n_estimators': [100, 200, 500],
+    'learning_rate': [0.01, 0.1, 0.2],
+    'max_depth': [3, 6, 10],
+    'subsample': [0.7, 0.8, 1],
+    'colsample_bytree': [0.7, 0.8, 1]
     }
+# XGBoost tuning
+    xgb_random = RandomizedSearchCV(
+    estimator=xgb.XGBRegressor(),
+    param_distributions=xgb_param_grid,
+    n_iter=5,
+    cv=2,
+    verbose=2,
+    random_state=42
+    )
 
-    # RandomizedSearch for Random Forest
-    rf_random_search = RandomizedSearchCV(rf_pipeline, rf_param_dist, n_iter=10, cv=5, 
-                                          scoring='neg_mean_squared_error', n_jobs=-1, verbose=1, random_state=42)
-    rf_random_search.fit(X_train_final, y_train_final)
-    print(f"Best Hyperparameters for Random Forest: {rf_random_search.best_params_}")
-    best_rf_model = rf_random_search.best_estimator_
+    xgb_random.fit(X_train_selected, y_train)
+    best_xgb = xgb_random.best_estimator_
 
-    # RandomizedSearch for XGBoost
-    xgb_random_search = RandomizedSearchCV(xgb_pipeline, xgb_param_dist, n_iter=10, cv=5, 
-                                           scoring='neg_mean_squared_error', n_jobs=-1, verbose=1, random_state=42)
-    xgb_random_search.fit(X_train_final, y_train_final)
-    print(f"Best Hyperparameters for XGBoost: {xgb_random_search.best_params_}")
-    best_xgb_model = xgb_random_search.best_estimator_
+# Random Forest tuning
+    rf_random = RandomizedSearchCV(
+    estimator=RandomForestRegressor(),
+    param_distributions=rf_param_grid,
+    n_iter=5,
+    cv=2,
+    verbose=2,
+    random_state=42
+    )
 
-    return best_rf_model, best_xgb_model
+    rf_random.fit(X_train_selected, y_train)
+    best_rf = rf_random.best_estimator_
 
+# Re-evaluate with tuned models
+    rf_preds_tuned = best_rf.predict(X_test_selected)
+    xgb_preds_tuned = best_xgb.predict(X_test_selected)
+    print("\nEvaluating Best Random Forest Model on Test Set:")
+    evaluate_model("Tuned Random Forest", y_test, rf_preds_tuned)
+    print("\nEvaluating Best XGBoost Model on Test Set:")
+    evaluate_model("Tuned XGBoost", y_test, xgb_preds_tuned)
 
-# Step 6: Final Model Evaluation using Test Set
-def evaluate_final_model(best_model, X_test, y_test):
-    y_test_pred = best_model.predict(X_test)
-    mse_test = mean_squared_error(y_test, y_test_pred)
-    rmse_test = np.sqrt(mse_test)
-    r2_test = r2_score(y_test, y_test_pred)
-
-    print(f"\nFinal Model Performance (Test Set):")
-    print(f"MSE: {mse_test:.4f}, RMSE: {rmse_test:.4f}, R2: {r2_test:.4f}")
-    return mse_test, rmse_test, r2_test
-
-# Main execution flow
 def main():
     # Load Data
     X_train, X_test, y_train, y_test = load_data()
+    X_train_encoded, X_test_encoded = cleaning(X_train,X_test)
 
-    # Split data into training and validation sets
-    X_train_final, X_val, y_train_final, y_val = split_data(X_train, y_train)
+    # Define models and feature selection
+    X_train_selected,X_test_selected = define_models(X_train_encoded,X_test_encoded,y_train,y_test)
 
-    # Define models
-    xgb_pipeline, rf_pipeline = define_models()
+    #Perform Hyperparameter Tuning and Get Best Models
+    hyperparameter_tuning(X_train_selected,X_test_selected, y_train, y_test)
 
-    # Evaluate models using the hold-out validation set
-    print("\nEvaluating XGBoost Model on Hold-Out Set:")
-    xgb_metrics = evaluate_model_with_holdout(xgb_pipeline, X_train_final, y_train_final, X_val, y_val)
-    print(f"MSE: {xgb_metrics[0]:.4f}, RMSE: {xgb_metrics[1]:.4f}, R2: {xgb_metrics[2]:.4f}")
-
-    print("\nEvaluating Random Forest Model on Hold-Out Set:")
-    rf_metrics = evaluate_model_with_holdout(rf_pipeline, X_train_final, y_train_final, X_val, y_val)
-    print(f"MSE: {rf_metrics[0]:.4f}, RMSE: {rf_metrics[1]:.4f},  R2: {rf_metrics[2]:.4f}")
-
-    # Perform Hyperparameter Tuning and Get Best Models
-    best_rf_model, best_xgb_model = hyperparameter_tuning(rf_pipeline, xgb_pipeline, X_train_final, y_train_final)
-
-    # Evaluate the best model on the test set
-    print("\nEvaluating Best Random Forest Model on Test Set:")
-    evaluate_final_model(best_rf_model, X_test, y_test)
-
-    print("\nEvaluating Best XGBoost Model on Test Set:")
-    evaluate_final_model(best_xgb_model, X_test, y_test)
 
 if __name__ == "__main__":
     main()
