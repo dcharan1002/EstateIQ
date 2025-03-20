@@ -1,0 +1,15 @@
+artifact_uri: file:///C:/Users/kavya/OneDrive/Desktop/EstateIQ/src/model_development/mlruns/428935125867654785/ad27926d7c7f4359a3e5f7fc1fbbfaeb/artifacts
+end_time: 1742491120284
+entry_point_name: ''
+experiment_id: '428935125867654785'
+lifecycle_stage: active
+run_id: ad27926d7c7f4359a3e5f7fc1fbbfaeb
+run_name: serious-frog-750
+run_uuid: ad27926d7c7f4359a3e5f7fc1fbbfaeb
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1742491107564
+status: 3
+tags: []
+user_id: kavya

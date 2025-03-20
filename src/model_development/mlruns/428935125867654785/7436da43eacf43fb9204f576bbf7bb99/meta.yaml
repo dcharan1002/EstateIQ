@@ -1,0 +1,15 @@
+artifact_uri: file:///C:/Users/kavya/OneDrive/Desktop/EstateIQ/src/model_development/mlruns/428935125867654785/7436da43eacf43fb9204f576bbf7bb99/artifacts
+end_time: 1742505775529
+entry_point_name: ''
+experiment_id: '428935125867654785'
+lifecycle_stage: active
+run_id: 7436da43eacf43fb9204f576bbf7bb99
+run_name: wistful-shrew-395
+run_uuid: 7436da43eacf43fb9204f576bbf7bb99
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1742505772978
+status: 3
+tags: []
+user_id: kavya

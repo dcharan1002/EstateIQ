@@ -1,0 +1,15 @@
+artifact_uri: file:///C:/Users/kavya/OneDrive/Desktop/EstateIQ/src/model_development/mlruns/428935125867654785/0392b072d1f047969083f671eebe5a01/artifacts
+end_time: 1742508100014
+entry_point_name: ''
+experiment_id: '428935125867654785'
+lifecycle_stage: active
+run_id: 0392b072d1f047969083f671eebe5a01
+run_name: treasured-asp-741
+run_uuid: 0392b072d1f047969083f671eebe5a01
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1742506829057
+status: 3
+tags: []
+user_id: kavya

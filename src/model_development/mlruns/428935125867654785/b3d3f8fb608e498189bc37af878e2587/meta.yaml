@@ -1,0 +1,15 @@
+artifact_uri: file:///C:/Users/kavya/OneDrive/Desktop/EstateIQ/src/model_development/mlruns/428935125867654785/b3d3f8fb608e498189bc37af878e2587/artifacts
+end_time: null
+entry_point_name: ''
+experiment_id: '428935125867654785'
+lifecycle_stage: active
+run_id: b3d3f8fb608e498189bc37af878e2587
+run_name: mysterious-shoat-961
+run_uuid: b3d3f8fb608e498189bc37af878e2587
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1742503678086
+status: 1
+tags: []
+user_id: kavya

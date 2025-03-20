@@ -1,0 +1,15 @@
+artifact_uri: file:///C:/Users/kavya/OneDrive/Desktop/EstateIQ/src/model_development/mlruns/428935125867654785/1f8e976bdfc5468f97fae4f8125c18e4/artifacts
+end_time: 1742499552021
+entry_point_name: ''
+experiment_id: '428935125867654785'
+lifecycle_stage: active
+run_id: 1f8e976bdfc5468f97fae4f8125c18e4
+run_name: EstateIQ_Run_2025-03-20_14-31-40
+run_uuid: 1f8e976bdfc5468f97fae4f8125c18e4
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1742495500699
+status: 4
+tags: []
+user_id: kavya
