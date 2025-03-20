@@ -18,3 +18,6 @@ apache-airflow-providers-sendgrid>=3.0.0
 # Testing
 pytest>=7.0.0
 pytest-cov>=4.0.0
+
+# Machine Learning Models
+xgboost>=1.7.0
