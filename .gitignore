@@ -38,3 +38,6 @@ plugins/
 .htmlcov/
 .pytest_cache/
 .coverage
+
+#visualizations and logs
+/results/

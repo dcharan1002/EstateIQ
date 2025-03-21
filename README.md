@@ -76,6 +76,18 @@ A robust data preprocessing pipeline for property data with feature engineering,
    - Monitor logs in `logs/` directory
    - Check feature reports in `data/features/`
 
+## MLflow Setup & Usage
+We use **MLflow** for tracking experiments and model performance.
+
+1. **Installation**
+```bash
+pip install mlflow
+```
+2. **Run tracking**
+```bash
+mlflow ui
+```
+
 ## Code Structure
 
 ```
