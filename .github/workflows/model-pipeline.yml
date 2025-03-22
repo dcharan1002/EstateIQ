@@ -1,0 +1,56 @@
+name: Model Training Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/model/**'
+      - 'Data/final/**'
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: estateiq-project
+  REGION: us-central1
+  ARTIFACT_REGISTRY: estateiq-models
+  MODEL_PATH: models/estate_price_prediction
+
+jobs:
+  train-and-validate:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Google Auth
+      uses: google-github-actions/auth@v0
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v0
+
+    - name: Trigger Cloud Build
+      run: |
+        gcloud builds submit \
+          --config cloudbuild.yaml \
+          --substitutions _ARTIFACT_REGISTRY=${{ env.ARTIFACT_REGISTRY }},_MODEL_PATH=${{ env.MODEL_PATH }}
+
+    - name: Check Training Results
+      id: check-training
+      run: |
+        # Get the latest metrics from GCS
+        gsutil cp gs://${{ env.ARTIFACT_REGISTRY }}/${{ env.MODEL_PATH }}/current/metrics.json ./latest_metrics.json
+        
+        # Set status based on validation success
+        if jq -e '.validation_passed == true' ./latest_metrics.json; then
+          echo "::set-output name=deploy::true"
+        else
+          echo "::set-output name=deploy::false"
+        fi
+
+    - name: Trigger Deployment Update
+      if: steps.check-training.outputs.deploy == 'true'
+      run: |
+        gcloud run services update estateiq-prediction \
+          --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/estateiq-models/prediction-service:latest \
+          --region ${{ env.REGION }}

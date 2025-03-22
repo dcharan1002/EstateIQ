@@ -1,0 +1,34 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy DVC config and credentials
+COPY .dvc/ .dvc/
+COPY .git/ .git/
+COPY dvc.yaml dvc.lock ./
+
+# Copy requirements and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY src/ src/
+COPY scripts/ scripts/
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV MLFLOW_TRACKING_URI=sqlite:///mlflow.db
+
+# Run tests and training
+CMD ["bash", "-c", "\
+    dvc pull && \
+    python -m pytest tests/ && \
+    python src/model/train.py \
+"]

@@ -245,5 +245,34 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
-volumes:
-  postgres-db-volume:
+  # Model training service
+  model-training:
+    build:
+      context: .
+      dockerfile: src/model/Dockerfile.training
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /app/gcp/credentials.json
+      NOTIFICATION_EMAIL: sshivaditya@gmail.com
+      MLFLOW_TRACKING_URI: sqlite:///mlflow.db
+      DVC_REMOTE_URL: ${DVC_REMOTE_URL}
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}/gcp:/app/gcp:ro
+      - ${AIRFLOW_PROJ_DIR:-.}/Data:/app/Data  # Updated to match uppercase Data
+      - ${AIRFLOW_PROJ_DIR:-.}/mlruns:/app/mlruns
+      - ${AIRFLOW_PROJ_DIR:-.}/artifacts:/app/artifacts
+      - ${AIRFLOW_PROJ_DIR:-.}/results:/app/results
+
+  # Model serving service
+  model-server:
+    build:
+      context: .
+      dockerfile: src/deployment/Dockerfile
+    ports:
+      - "8000:8080"
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /app/gcp/credentials.json
+      MLFLOW_TRACKING_URI: sqlite:///mlflow.db
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}/gcp:/app/gcp:ro
+      - ${AIRFLOW_PROJ_DIR:-.}/mlruns:/app/mlruns
+      - ${AIRFLOW_PROJ_DIR:-.}/artifacts:/app/model

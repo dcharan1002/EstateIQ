@@ -1,0 +1,99 @@
+steps:
+# Install dependencies
+- name: python:3.10
+  entrypoint: pip
+  args: ["install", "-r", "requirements.txt", "--user"]
+
+# Run model training and validation
+- name: python:3.10
+  entrypoint: python
+  args: ["-m", "src.model.train"]
+  env:
+    - 'ARTIFACT_REGISTRY=${_ARTIFACT_REGISTRY}'
+    - 'MODEL_PATH=${_MODEL_PATH}'
+
+# Check if model validation passed and compare performance
+- name: gcr.io/cloud-builders/gcloud
+  entrypoint: 'bash'
+  args:
+    - '-c'
+    - |
+      set -e
+      
+      # First check if validation passed
+      if ! jq -e '.validation_passed == true' ./results/validation/latest_metrics.json; then
+        echo "Model validation failed"
+        exit 1
+      fi
+      
+      # Then compare with current model if it exists
+      if gsutil -q stat gs://${_ARTIFACT_REGISTRY}/${_MODEL_PATH}/current/metrics.json; then
+        gsutil cp gs://${_ARTIFACT_REGISTRY}/${_MODEL_PATH}/current/metrics.json ./current_metrics.json
+        NEW_R2=$(jq '.metrics.r2' results/validation/latest_metrics.json)
+        CURRENT_R2=$(jq '.metrics.r2' ./current_metrics.json)
+        
+        if (( $(echo "$NEW_R2 <= $CURRENT_R2" | bc -l) )); then
+          echo "New model (R2: $NEW_R2) does not outperform current model (R2: $CURRENT_R2)"
+          exit 1
+        fi
+        
+        echo "New model (R2: $NEW_R2) outperforms current model (R2: $CURRENT_R2)"
+      fi
+
+# Upload new model artifacts if validation passed and performance improved
+- name: gcr.io/cloud-builders/gcloud
+  entrypoint: 'bash'
+  args:
+    - '-c'
+    - |
+      TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+      
+      # Upload versioned copy
+      gsutil cp artifacts/model_latest.joblib \
+        gs://${_ARTIFACT_REGISTRY}/${_MODEL_PATH}/versions/$TIMESTAMP/model.joblib
+      gsutil cp results/validation/latest_metrics.json \
+        gs://${_ARTIFACT_REGISTRY}/${_MODEL_PATH}/versions/$TIMESTAMP/metrics.json
+      
+      # Update current version
+      gsutil cp artifacts/model_latest.joblib \
+        gs://${_ARTIFACT_REGISTRY}/${_MODEL_PATH}/current/model.joblib
+      gsutil cp results/validation/latest_metrics.json \
+        gs://${_ARTIFACT_REGISTRY}/${_MODEL_PATH}/current/metrics.json
+
+# Build and push the serving container
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+    'build',
+    '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/estateiq-models/prediction-service:${_VERSION}',
+    '-f', 'src/deployment/Dockerfile',
+    '.'
+  ]
+
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+    'tag',
+    '${_REGION}-docker.pkg.dev/${PROJECT_ID}/estateiq-models/prediction-service:${_VERSION}',
+    '${_REGION}-docker.pkg.dev/${PROJECT_ID}/estateiq-models/prediction-service:latest'
+  ]
+
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+    'push',
+    '${_REGION}-docker.pkg.dev/${PROJECT_ID}/estateiq-models/prediction-service:${_VERSION}'
+  ]
+
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+    'push',
+    '${_REGION}-docker.pkg.dev/${PROJECT_ID}/estateiq-models/prediction-service:latest'
+  ]
+
+substitutions:
+  _ARTIFACT_REGISTRY: estateiq-models
+  _MODEL_PATH: models/estate_price_prediction
+  _REGION: us-central1
+  _VERSION: ${BUILD_ID}
+
+options:
+  dynamic_substitutions: true
+  logging: CLOUD_LOGGING_ONLY
