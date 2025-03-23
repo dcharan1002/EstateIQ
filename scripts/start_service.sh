@@ -28,14 +28,6 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-# Load environment variables if .env exists
-if [ -f .env ]; then
-    # Use export to properly handle values with spaces
-    set -a
-    source .env
-    set +a
-fi
-
 echo -e "${YELLOW}Deploying service to Cloud Run...${NC}"
 echo "Project ID: $PROJECT_ID"
 echo "Region: $REGION"
