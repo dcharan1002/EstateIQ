@@ -38,6 +38,12 @@ jobs:
           echo "Model artifacts not found. Training may have failed."
           exit 1
         fi
+    
+    - name: Wait for 2 minutes before deployment
+      run: |
+        echo "Waiting for 2 minutes before deployment..."
+        sleep 120
+        echo "Wait complete, proceeding with deployment"
 
     - name: Deploy to Cloud Run
       run: |
