@@ -36,7 +36,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install dvc dvc[gs] google-cloud-storage
+        pip install dvc[gs] google-cloud-storage
 
     - name: Google Auth
       uses: google-github-actions/auth@v2
@@ -53,14 +53,27 @@ jobs:
         echo '${{ secrets.GCP_SA_KEY }}' > key.json
         dvc pull
 
+    - name: Debug - List Data Directory
+      run: |
+        echo "Current directory:"
+        pwd
+        echo "\nListing root directory:"
+        ls -la
+        echo "\nListing Data directory:"
+        ls -la Data/
+        echo "\nListing Data/final directory:"
+        ls -la Data/final/
+        echo "\nListing Data/features directory:"
+        ls -la Data/features/
+        echo "\nChecking if X_train.csv exists:"
+        find . -name "X_train.csv"
+
     - name: Trigger Cloud Build
       run: |
         gcloud builds submit . \
           --config=cloudbuild.yaml \
           --project=${{ env.PROJECT_ID }} \
           --substitutions=_PROJECT_ID=${{ env.PROJECT_ID }},_ARTIFACT_REGISTRY=${{ env.ARTIFACT_REGISTRY }},_MODEL_PATH=${{ env.MODEL_PATH }},_REGION=${{ env.REGION }},_MLFLOW_TRACKING_URI=${{ env.MLFLOW_TRACKING_URI }},_GMAIL_APP_PASSWORD="${{ env.GMAIL_APP_PASSWORD }}",_NOTIFICATION_EMAIL="${{ env.NOTIFICATION_EMAIL }}"
-
-
     - name: Check Build Status
       id: check_build
       run: |
