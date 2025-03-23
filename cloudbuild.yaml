@@ -17,8 +17,8 @@ steps:
   args:
     - '-c'
     - |
-      # Create necessary directories
-      mkdir -p /model-data/artifacts /model-data/results/validation
+      # Create all necessary directories
+      mkdir -p artifacts results/validation /model-data/artifacts /model-data/results/validation
       
       # Install dependencies
       pip install --no-cache-dir -r requirements.txt
@@ -27,9 +27,26 @@ steps:
       export PYTHONPATH=/workspace
       python -m src.model.train
       
+      # List files to debug
+      echo "Listing artifacts directory:"
+      ls -la artifacts/
+      echo "Listing results directory:"
+      ls -la results/validation/
+      
       # Copy artifacts to shared volume
-      cp artifacts/model_latest.joblib /model-data/artifacts/
-      cp results/validation/validation_latest.json /model-data/results/validation/
+      if [ -f artifacts/model_latest.joblib ]; then
+        cp artifacts/model_latest.joblib /model-data/artifacts/
+      else
+        echo "Error: model_latest.joblib not found"
+        exit 1
+      fi
+      
+      if [ -f results/validation/validation_latest.json ]; then
+        cp results/validation/validation_latest.json /model-data/results/validation/
+      else
+        echo "Error: validation_latest.json not found"
+        exit 1
+      fi
 
   env:
     # MLOps Configuration
