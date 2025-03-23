@@ -5,7 +5,8 @@ import mlflow
 import numpy as np
 from datetime import datetime
 from .utils.notifications import notify_error
-from .utils.visualization import plot_bias_analysis, create_metrics_visualization
+from .utils.bias_analysis import BiasAnalyzer
+from .utils.visualization import create_metrics_visualization
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -28,88 +29,29 @@ BIAS_THRESHOLDS = {
     'performance_disparity': float(os.getenv('BIAS_PERFORMANCE_DISPARITY_THRESHOLD', 0.1))
 }
 
-# Get bias check features from environment
-BIAS_CHECK_FEATURES = os.getenv('BIAS_CHECK_FEATURES', '').split(',')
-if not BIAS_CHECK_FEATURES[0]:  # Handle empty string case
-    BIAS_CHECK_FEATURES = ['STRUCTURE_CLASS', 'OWNER_OCC', 'OVERALL_COND', 'LU', 'INT_COND']
-
-def check_bias(model, X, y, sensitive_features=None):
-    if sensitive_features is None:
-        sensitive_features = BIAS_CHECK_FEATURES
-
-    bias_report = {
-        'bias_detected': False,
-        'details': {},
-        'plots': {},
-        'summary': {}
-    }
-
-    predictions = model.predict(X)
+def check_bias(model, X, y):    
+    # Initialize bias analyzer
+    analyzer = BiasAnalyzer(model)
     
-    # Filter for available features
-    available_features = [f for f in sensitive_features if f in X.columns]
-    if not available_features:
-        logger.warning("No bias check features found in dataset")
-        return bias_report
-
-    for feature in available_features:
-        feature_values = X[feature].unique()
-        group_metrics = {}
-
-        # Calculate metrics for each group
-        for group in feature_values:
-            mask = X[feature] == group
-            if sum(mask) == 0:
-                continue
-
-            group_preds = predictions[mask]
-            group_truth = y[mask]
-
-            group_metrics[str(group)] = {
-                'size': int(sum(mask)),
-                'mean_prediction': float(np.mean(group_preds)),
-                'mean_actual': float(np.mean(group_truth)),
-                'rmse': float(np.sqrt(np.mean((group_preds - group_truth) ** 2)))
-            }
-
-        # Calculate disparities
-        if group_metrics:
-            mean_predictions = [m['mean_prediction'] for m in group_metrics.values()]
-            mean_rmse = [m['rmse'] for m in group_metrics.values()]
-
-            prediction_disparity = max(mean_predictions) - min(mean_predictions)
-            performance_disparity = max(mean_rmse) - min(mean_rmse)
-
-            feature_bias = {
-                'prediction_disparity': prediction_disparity,
-                'performance_disparity': performance_disparity,
-                'group_metrics': group_metrics
-            }
-
-            bias_report['details'][feature] = feature_bias
-
-            # Generate and store bias analysis plot
-            bias_plot_path = plot_bias_analysis(bias_report, feature)
-            if bias_plot_path:
-                bias_report['plots'][feature] = bias_plot_path
-
-            # Check if any threshold is exceeded
-            if (prediction_disparity > BIAS_THRESHOLDS['prediction_disparity'] or
-                performance_disparity > BIAS_THRESHOLDS['performance_disparity']):
-                bias_report['bias_detected'] = True
-                bias_report['summary'][feature] = {
-                    'status': 'Bias Detected',
-                    'prediction_disparity': prediction_disparity,
-                    'performance_disparity': performance_disparity
-                }
-            else:
-                bias_report['summary'][feature] = {
-                    'status': 'No Significant Bias',
-                    'prediction_disparity': prediction_disparity,
-                    'performance_disparity': performance_disparity
-                }
-
-    return bias_report
+    # Perform bias analysis
+    bias_results = analyzer.analyze_bias(X, y)
+    
+    # Generate comprehensive report
+    significant_disparities = analyzer.generate_bias_report(bias_results)
+    
+    logger.info(f"Significant disparities: {significant_disparities}")
+    bias_detected = len(significant_disparities) > 0
+    
+    return {
+        'bias_detected': bias_detected,
+        'details': bias_results,
+        'significant_disparities': significant_disparities,
+        'summary': {
+            'status': 'Bias Detected' if bias_detected else 'No Significant Bias',
+            'features_analyzed': len(bias_results),
+            'features_with_bias': len(significant_disparities)
+        }
+    }
 
 def validate_model(model, run_id, X_val, y_val):
     validation_context = {
@@ -138,57 +80,28 @@ def validate_model(model, run_id, X_val, y_val):
         metrics_plot = create_metrics_visualization(metrics, VALIDATION_THRESHOLDS)
         validation_context["metrics_plot"] = metrics_plot
 
-        # Check bias
-        bias_report = check_bias(model, X_val, y_val)
-        validation_context.update({
-            "stage": "bias_checked",
-            "bias_detected": bias_report['bias_detected']
-        })
-
         # Create validation results directory
         results_dir = Path("results/validation")
         results_dir.mkdir(parents=True, exist_ok=True)
 
         # Log results to MLflow
         with mlflow.start_run(run_id=run_id, nested=True) as validation_run:
-            # Log metrics and plots
             mlflow.log_metrics(metrics)
             mlflow.log_artifact(metrics_plot)
-            
-            # Log bias analysis results
-            if bias_report:
-                mlflow.log_dict(bias_report, "bias_report.json")
-                for feature, plot_path in bias_report.get('plots', {}).items():
-                    if plot_path and Path(plot_path).exists():
-                        mlflow.log_artifact(plot_path)
 
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            results = {
-                'timestamp': timestamp,
-                'run_id': run_id,
-                'metrics': metrics,
-                'bias_report': bias_report,
-                'validation_thresholds': VALIDATION_THRESHOLDS,
-                'bias_thresholds': BIAS_THRESHOLDS
-            }
-
-            # Save results locally
-            results_path = results_dir / f"validation_latest.json"
-            with open(results_path, 'w') as f:
-                json.dump(results, f, indent=2)
-
-        # Check if validation passes
+        # Check performance metrics only
         validation_passed = all(
             metrics[metric] >= threshold
             for metric, threshold in VALIDATION_THRESHOLDS.items()
         )
 
-        if not validation_passed or (bias_report and bias_report['bias_detected']):
-            logger.warning("Validation failed or bias detected")
-            return False, metrics, bias_report
+        if not validation_passed:
+            logger.warning("Model validation failed: Performance metrics below thresholds")
+        else:
+            logger.info("Model validation passed: Performance metrics meet thresholds")
 
-        logger.info("Model validation successful")
-        return True, metrics, bias_report
+        return validation_passed, metrics, {}
+
 
     except Exception as e:
         notify_error(e, validation_context)

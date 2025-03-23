@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import mlflow
 from pathlib import Path
-import os
 from sklearn.ensemble import RandomForestRegressor
 import xgboost as xgb
 

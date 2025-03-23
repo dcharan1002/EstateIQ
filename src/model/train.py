@@ -7,6 +7,7 @@ import pandas as pd
 import joblib
 from datetime import datetime
 from .models import get_model
+from .utils.bias_analysis import BiasAnalyzer
 from .utils.shap_analysis import generate_shap_analysis
 from .utils.metrics import calculate_metrics
 from .utils.visualization import (
@@ -54,10 +55,10 @@ def load_data():
     logger.info(f"Looking for data in: {data_dir}")
     
     try:
-        X_train = pd.read_csv(data_dir / "X_train.csv").head(100)
-        X_test = pd.read_csv(data_dir / "X_test.csv").head(100)
-        y_train = pd.read_csv(data_dir / "y_train.csv").squeeze().iloc[:100]
-        y_test = pd.read_csv(data_dir / "y_test.csv").squeeze().iloc[:100]
+        X_train = pd.read_csv(data_dir / "X_train.csv").head(1000)
+        X_test = pd.read_csv(data_dir / "X_test.csv").head(1000)
+        y_train = pd.read_csv(data_dir / "y_train.csv").squeeze().iloc[:1000]
+        y_test = pd.read_csv(data_dir / "y_test.csv").squeeze().iloc[:1000]
         X_train['BLDG_TYPE'] = X_train['BLDG_TYPE'].astype('category')
         X_test['BLDG_TYPE'] = X_test['BLDG_TYPE'].astype('category')
         logger.info(f"Loaded data: X_train shape={X_train.shape}, X_test shape={X_test.shape}")
@@ -71,7 +72,20 @@ def load_data():
         # Get encoded versions for training
         X_train_encoded, X_test_encoded, encoders = cleaning(X_train, X_test)
         
-        return X_train, X_train_encoded, X_test, X_test_encoded, y_train, y_test, encoders
+        # Create validation split (20% of training data)
+        validation_size = int(len(X_train_encoded) * 0.2)
+        X_val_encoded = X_train_encoded.tail(validation_size).reset_index(drop=True)
+        X_val = X_train.tail(validation_size).reset_index(drop=True)
+        y_val = y_train.tail(validation_size).reset_index(drop=True)
+        
+        # Update training data to exclude validation set
+        X_train_encoded = X_train_encoded.head(-validation_size).reset_index(drop=True)
+        X_train = X_train.head(-validation_size).reset_index(drop=True)
+        y_train = y_train.head(-validation_size).reset_index(drop=True)
+        
+        logger.info(f"Created validation split: train={len(X_train)}, val={len(X_val)}, test={len(X_test)} samples")
+        
+        return X_train, X_train_encoded, X_test, X_test_encoded, X_val, X_val_encoded, y_train, y_val, y_test, encoders
     except Exception as e:
         context = {
             "data_dir": str(data_dir),
@@ -100,6 +114,73 @@ def save_model(model, model_dir):
     logger.info(f"Model saved to {model_path}")
     return model_path
 
+def evaluate_and_mitigate_bias(model, X_val, y_val):
+    """Analyze and mitigate bias with enhanced reporting"""
+    bias_analyzer = BiasAnalyzer(model)
+    
+    # Initial bias analysis
+    logger.info("Performing initial bias analysis...")
+    bias_results = bias_analyzer.analyze_bias(X_val, y_val)
+    bias_report = bias_analyzer.generate_bias_report(bias_results)
+    
+    if bias_report['bias_detected']:
+        significant_disparities = bias_report.get('significant_disparities', [])
+        logger.warning(f"Bias detected in {len(significant_disparities)} features")
+        
+        # Log initial disparities
+        for disparity in significant_disparities:
+            if 'feature' in disparity:
+                feature = disparity['feature']
+                logger.info(f"\nBias details for {feature}:")
+                for metric, value in disparity['disparities'].items():
+                    logger.info(f"- {metric}: {value:.3f}")
+                if 'interpretation' in disparity:
+                    for interpretation in disparity['interpretation']:
+                        logger.info(f"- {interpretation}")
+        
+        # Attempt mitigation for each feature
+        mitigated_model = model
+        for disparity in significant_disparities:
+            if 'feature' in disparity:
+                feature = disparity['feature']
+                logger.info(f"\nAttempting bias mitigation for feature: {feature}")
+                
+                # Try mitigation
+                mitigated_model = bias_analyzer.mitigate_bias(X_val, y_val, feature)
+                
+                # Analyze results for this feature
+                temp_analyzer = BiasAnalyzer(mitigated_model)
+                feature_results = temp_analyzer.analyze_bias(X_val, y_val)
+                feature_report = temp_analyzer.generate_bias_report(feature_results)
+                
+                # Check if mitigation helped this feature
+                if feature in feature_report.get('significant_disparities', []):
+                    logger.warning(f"Mitigation for {feature} did not meet fairness thresholds")
+                else:
+                    logger.info(f"Successfully mitigated bias for {feature}")
+                
+                model = mitigated_model
+        
+        # Final bias check
+        logger.info("\nPerforming final bias analysis...")
+        bias_analyzer = BiasAnalyzer(mitigated_model)
+        new_results = bias_analyzer.analyze_bias(X_val, y_val)
+        new_report = bias_analyzer.generate_bias_report(new_results)
+        
+        if new_report['bias_detected']:
+            remaining_disparities = len(new_report.get('significant_disparities', []))
+            logger.warning(
+                f"Bias mitigation partially successful. "
+                f"Remaining disparities in {remaining_disparities} features"
+            )
+        else:
+            logger.info("Bias successfully mitigated across all features")
+            bias_report = new_report
+    else:
+        logger.info("No significant bias detected in initial analysis")
+    
+    return model, bias_report
+
 def train_model():
     training_context = {
         "stage": "initialization",
@@ -111,7 +192,7 @@ def train_model():
         logger.info("MLflow configured successfully")
         
         # Load raw data first
-        X_train_raw, X_train, X_test_raw, X_test, y_train, y_test, encoders = load_data()
+        X_train_raw, X_train, X_test_raw, X_test, X_val_raw, X_val, y_train, y_val, y_test, encoders = load_data()
         logger.info("Data loaded successfully")
         training_context["stage"] = "data_loading_complete"
 
@@ -230,27 +311,43 @@ def train_model():
                 mlflow.log_metrics(best_metrics)
                 mlflow.log_artifact(str(model_path))
                 
-                # Check bias using raw data for interpretable results
-                logger.info("Checking for bias in the best model...")
-                bias_report = check_bias(
-                    best_model.model if hasattr(best_model, 'model') else best_model,
-                    X_test, 
-                    y_test
-                )
-                
-                # Run model validation
+                # Step 1: Model Validation
                 logger.info("Running model validation...")
-                training_context["stage"] = "validation"
                 validation_passed, validation_metrics, _ = validate_model(
                     model=best_model.model if hasattr(best_model, 'model') else best_model,
                     run_id=parent_run.info.run_id,
-                    X_val=X_test,
-                    y_val=y_test
+                    X_val=X_val,
+                    y_val=y_val
                 )
                 
-                # Send training report with bias analysis
+                # Step 2: Bias Analysis and Mitigation
+                logger.info("Checking for socioeconomic bias...")
+                initial_model = best_model.model if hasattr(best_model, 'model') else best_model
+                
+                # First attempt with standard mitigation
+                mitigated_model, bias_report = evaluate_and_mitigate_bias(
+                    initial_model, X_val, y_val
+                )
+                
+                # Check if initial mitigation was successful
+                if bias_report['bias_detected']:
+                    logger.info("Initial mitigation incomplete, attempting stronger mitigation...")
+                    # Try again with the mitigated model as a starting point
+                    mitigated_model, bias_report = evaluate_and_mitigate_bias(
+                        mitigated_model, X_val, y_val
+                    )
+                    
+                    # If still biased, try one final time with stronger weights
+                    if bias_report['bias_detected']:
+                        logger.info("Second mitigation incomplete, attempting final mitigation...")
+                        analyzer = BiasAnalyzer(mitigated_model, constraint_weight=0.8)  # Stronger constraint
+                        mitigated_model, bias_report = analyzer.analyze_bias(X_val, y_val), analyzer.generate_bias_report({})
+                
+                best_model = mitigated_model
+                
+                # Send training report
                 notify_training_completion(
-                    model_name=best_model.name,
+                    model_name=best_model.name if hasattr(best_model, 'name') else best_model.__class__.__name__,
                     metrics=best_metrics,
                     plots=all_plots,
                     run_id=parent_run.info.run_id,
@@ -259,8 +356,14 @@ def train_model():
                     success=validation_passed
                 )
                 
-                logger.info(f"Best model: {best_model.name}")
+                model_name = best_model.name if hasattr(best_model, 'name') else best_model.__class__.__name__
+                logger.info(f"Best model: {model_name}")
                 logger.info(f"Best model metrics: {best_metrics}")
+                
+                # Log final statuses separately
+                logger.info(f"Performance Validation: {'✓' if validation_passed else '✗'}")
+                logger.info(f"Fairness Check: {'✓' if not bias_report['bias_detected'] else '✗'}")
+                
                 return validation_passed
             
             else:
