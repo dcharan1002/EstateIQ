@@ -14,6 +14,7 @@ env:
   ARTIFACT_REGISTRY: estateiq-models
   MODEL_PATH: models/estate_price_prediction
   SA_EMAIL: self-522@estateiqclone.iam.gserviceaccount.com
+  SERVICE_NAME: estateiq-prediction
   # Add substitution values that match cloudbuild.yaml
   GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
   NOTIFICATION_EMAIL: ${{ secrets.NOTIFICATION_EMAIL }}
@@ -121,9 +122,31 @@ jobs:
     - name: Deploy to Cloud Run
       if: steps.check_build.outputs.deploy == 'true'
       run: |
-        gcloud run deploy estateiq-prediction \
-          --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/estateiq-models/prediction-service:latest \
+        # Make script executable
+        chmod +x scripts/start_service.sh
+        
+        # Deploy using start_service.sh
+        ./scripts/start_service.sh \
+          --project-id ${{ env.PROJECT_ID }} \
           --region ${{ env.REGION }} \
-          --platform managed \
-          --allow-unauthenticated \
-          --project ${{ env.PROJECT_ID }}
+          --service-name ${{ env.SERVICE_NAME }} \
+          --artifact-registry ${{ env.ARTIFACT_REGISTRY }} \
+          --model-path ${{ env.MODEL_PATH }}
+
+    - name: Test Deployment
+      if: steps.check_build.outputs.deploy == 'true'
+      run: |
+        # Make test script executable
+        chmod +x scripts/test_inference.py
+        
+        # Wait for service to be ready
+        sleep 30
+        
+        # Run test script
+        ./scripts/test_inference.py
+
+    - name: Notify on Failure
+      if: failure()
+      run: |
+        echo "Pipeline failed. Please check the logs for details."
+        exit 1

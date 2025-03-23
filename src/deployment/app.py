@@ -1,7 +1,9 @@
 import os
 import joblib
 import logging
+import json
 import pandas as pd
+import numpy as np
 from flask import Flask, request, jsonify
 from pathlib import Path
 from datetime import datetime
@@ -35,9 +37,46 @@ def load_model():
 
 try:
     model = load_model()
+    # Get expected features
+    if hasattr(model, 'feature_names_in_'):
+        EXPECTED_FEATURES = model.feature_names_in_
+    elif hasattr(model, 'get_booster'):
+        EXPECTED_FEATURES = model.get_booster().feature_names
+    else:
+        EXPECTED_FEATURES = []
 except Exception as e:
     logger.error(f"Failed to load model on startup: {e}")
     raise
+
+def get_feature_defaults():
+    """Get default values for each feature type"""
+    return {
+        'GROSS_AREA': 2000.0,
+        'LIVING_AREA': 1500.0,
+        'LAND_SF': 5000.0,
+        'YR_BUILT': 1980,
+        'YR_REMODEL': 1980,
+        'BED_RMS': 3.0,
+        'FULL_BTH': 2.0,
+        'HLF_BTH': 1.0,
+    }
+
+def prepare_features(input_data):
+    """Prepare input features with defaults for missing values"""
+    # Get default values
+    defaults = {feature: 0.0 for feature in EXPECTED_FEATURES}
+    feature_defaults = get_feature_defaults()
+    defaults.update(feature_defaults)
+
+    # Create feature vector with defaults
+    features = {}
+    for feature in EXPECTED_FEATURES:
+        if feature in input_data:
+            features[feature] = input_data[feature]
+        else:
+            features[feature] = defaults[feature]
+            
+    return pd.DataFrame([features])
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -48,17 +87,19 @@ def predict():
         if not data:
             return jsonify({"error": "No data provided"}), 400
 
-        # Convert to DataFrame and ensure all required features are present
+        # Create DataFrame with defaults for missing features
         try:
-            features = pd.DataFrame([data])
+            features = prepare_features(data)
+            # Replace NaN and inf values with 0
+            features = features.replace([np.inf, -np.inf], np.nan).fillna(0)
         except Exception as e:
             return jsonify({"error": f"Invalid data format: {str(e)}"}), 400
 
         # Make prediction
         prediction = model.predict(features)
 
-        # Log prediction
-        logger.info(f"Made prediction: {prediction[0]}")
+        # Log prediction details
+        logger.info(f"Made prediction: {prediction[0]} for features: {data}")
 
         # Return prediction with timestamp and model info
         response = {
