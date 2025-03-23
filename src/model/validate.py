@@ -84,16 +84,32 @@ def validate_model(model, run_id, X_val, y_val):
         results_dir = Path("results/validation")
         results_dir.mkdir(parents=True, exist_ok=True)
 
-        # Log results to MLflow
-        with mlflow.start_run(run_id=run_id, nested=True) as validation_run:
-            mlflow.log_metrics(metrics)
-            mlflow.log_artifact(metrics_plot)
-
-        # Check performance metrics only
+        # Check performance metrics
         validation_passed = all(
             metrics[metric] >= threshold
             for metric, threshold in VALIDATION_THRESHOLDS.items()
         )
+
+        # Save validation results to JSON
+        validation_results = {
+            "timestamp": datetime.now().isoformat(),
+            "run_id": run_id,
+            "metrics": metrics,
+            "thresholds": VALIDATION_THRESHOLDS,
+            "validation_passed": validation_passed
+        }
+        
+        results_path = results_dir / "validation_latest.json"
+        with open(results_path, 'w') as f:
+            json.dump(validation_results, f, indent=2)
+        
+        logger.info(f"Validation results saved to {results_path}")
+
+        # Log results to MLflow
+        with mlflow.start_run(run_id=run_id, nested=True) as validation_run:
+            mlflow.log_metrics(metrics)
+            mlflow.log_artifact(metrics_plot)
+            mlflow.log_artifact(str(results_path))
 
         if not validation_passed:
             logger.warning("Model validation failed: Performance metrics below thresholds")
