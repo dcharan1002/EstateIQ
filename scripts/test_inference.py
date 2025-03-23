@@ -1,11 +1,7 @@
 #!/usr/bin/env python3
-import os
 import json
-import numpy as np
 import argparse
 import requests
-import pandas as pd
-from pathlib import Path
 
 def get_service_url(local=False):
     """Get the service URL"""
