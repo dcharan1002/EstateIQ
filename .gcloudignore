@@ -45,8 +45,6 @@ mlruns/
 # Keep Data directory!
 !Data/
 !Data/**
-!data/
-!data/**
 
 # Test files
 tests/
