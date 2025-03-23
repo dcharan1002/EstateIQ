@@ -115,11 +115,11 @@ steps:
         echo "New R2: $new_r2"
         echo "Current R2: $current_r2"
         
-        if (( $(echo "$new_r2 <= $current_r2" | bc -l) )); then
-          echo "New model ($new_r2) not better than current ($current_r2)"
+        if (( $(echo "$new_r2 < $current_r2" | bc -l) )); then
+          echo "New model ($new_r2) worse than current ($current_r2)"
           exit 1
         fi
-        echo "New model ($new_r2) better than current ($current_r2)"
+        echo "New model ($new_r2) is at least as good as current ($current_r2)"
       else
         echo "No current production model found. This will be the first deployment."
       fi
