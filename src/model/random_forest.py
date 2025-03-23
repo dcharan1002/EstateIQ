@@ -1,10 +1,8 @@
-import logging
 import pandas as pd
 import mlflow
 import mlflow.sklearn
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import RandomizedSearchCV
-from pathlib import Path
 from .base import BaseModel, MODEL_DIR, RESULTS_DIR, logger
 
 class RandomForestModel(BaseModel):
@@ -13,7 +11,6 @@ class RandomForestModel(BaseModel):
         self.model = RandomForestRegressor(n_estimators=n_estimators, **kwargs)
         
     def train(self, X_train, y_train):
-        """Train the Random Forest model."""
         logger.info(f"\nTraining {self.name}...")
         start_time = pd.Timestamp.now()
         
@@ -26,15 +23,12 @@ class RandomForestModel(BaseModel):
         return self
         
     def predict(self, X):
-        """Make predictions using the Random Forest model."""
         return self.model.predict(X)
         
     def get_feature_importance(self, feature_names):
-        """Get feature importance scores."""
         return pd.Series(self.model.feature_importances_, index=feature_names)
         
     def tune_hyperparameters(self, X_train, y_train):
-        """Tune Random Forest hyperparameters."""
         logger.info(f"\nTuning hyperparameters for {self.name}...")
         
         param_grid = {
@@ -79,7 +73,6 @@ class RandomForestModel(BaseModel):
         return self
         
     def save(self, path=None):
-        """Save Random Forest model."""
         if path is None:
             path = MODEL_DIR / f"{self.name.lower()}_model.pkl"
         mlflow.sklearn.log_model(self.model, f"{self.name}_model")
@@ -87,6 +80,5 @@ class RandomForestModel(BaseModel):
         logger.info(f"Model saved to {path}")
         
     def load(self, path):
-        """Load Random Forest model."""
         self.model = pd.read_pickle(path)
         return self

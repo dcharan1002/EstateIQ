@@ -1,7 +1,5 @@
-"""Email notification utilities for model training results."""
 import os
 import logging
-import base64
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage

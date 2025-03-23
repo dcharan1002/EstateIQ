@@ -33,19 +33,6 @@ AVAILABLE_MODELS = {
 }
 
 def get_model(model_name, **kwargs):
-    """
-    Get a model instance by name.
-    
-    Args:
-        model_name (str): Name of the model to get
-        **kwargs: Additional parameters to pass to the model
-    
-    Returns:
-        BaseModel: Instance of the requested model
-        
-    Raises:
-        ValueError: If model_name is not found in AVAILABLE_MODELS
-    """
     if model_name not in AVAILABLE_MODELS:
         raise ValueError(
             f"Model '{model_name}' not found. Available models: {list(AVAILABLE_MODELS.keys())}"

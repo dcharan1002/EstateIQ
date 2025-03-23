@@ -1,10 +1,8 @@
 import os
 import json
 import logging
-import joblib
 import mlflow
 import numpy as np
-import pandas as pd
 from datetime import datetime
 from .utils.notifications import notify_error
 from .utils.visualization import plot_bias_analysis, create_metrics_visualization
@@ -36,7 +34,6 @@ if not BIAS_CHECK_FEATURES[0]:  # Handle empty string case
     BIAS_CHECK_FEATURES = ['STRUCTURE_CLASS', 'OWNER_OCC', 'OVERALL_COND', 'LU', 'INT_COND']
 
 def check_bias(model, X, y, sensitive_features=None):
-    """Check for bias across different demographic and structural groups"""
     if sensitive_features is None:
         sensitive_features = BIAS_CHECK_FEATURES
 
@@ -115,7 +112,6 @@ def check_bias(model, X, y, sensitive_features=None):
     return bias_report
 
 def validate_model(model, run_id, X_val, y_val):
-    """Run model validation and bias detection with provided data"""
     validation_context = {
         "stage": "initialization",
         "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),

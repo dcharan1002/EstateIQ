@@ -4,7 +4,6 @@ import mlflow
 import mlflow.xgboost
 import xgboost as xgb
 from sklearn.model_selection import RandomizedSearchCV
-from pathlib import Path
 from .base import BaseModel, MODEL_DIR, RESULTS_DIR, logger
 
 class XGBoostModel(BaseModel):
@@ -12,7 +11,7 @@ class XGBoostModel(BaseModel):
         super().__init__(name)
         self.model = xgb.XGBRegressor(
             n_estimators=n_estimators,
-            tree_method='hist',  # Better handling of categorical features
+            tree_method='hist',
             enable_categorical=True,
             **kwargs
         )
@@ -22,14 +21,10 @@ class XGBoostModel(BaseModel):
         logger.info(f"\nTraining {self.name}...")
         start_time = pd.Timestamp.now()
         
-        # Convert data to DMatrix for better performance
-        dtrain = xgb.DMatrix(X_train, label=y_train, enable_categorical=True)
-        
-        # Set parameters explicitly
         params = self.model.get_params()
-        params['tree_method'] = 'hist'  # Better handling of categorical features
+        params['tree_method'] = 'hist'
         
-        # Train using the native API
+
         self.model.fit(X_train, y_train)
         
         training_time = (pd.Timestamp.now() - start_time).total_seconds()
@@ -39,15 +34,12 @@ class XGBoostModel(BaseModel):
         return self
         
     def predict(self, X):
-        """Make predictions using the XGBoost model."""
         return self.model.predict(X)
         
     def get_feature_importance(self, feature_names):
-        """Get feature importance scores."""
         return pd.Series(self.model.feature_importances_, index=feature_names)
         
     def tune_hyperparameters(self, X_train, y_train):
-        """Tune XGBoost hyperparameters."""
         logger.info(f"\nTuning hyperparameters for {self.name}...")
         
         param_grid = {
@@ -100,7 +92,6 @@ class XGBoostModel(BaseModel):
         return self
         
     def save(self, path=None):
-        """Save XGBoost model."""
         if path is None:
             path = MODEL_DIR / f"{self.name.lower()}_model.json"
         mlflow.xgboost.log_model(self.model, f"{self.name}_model")
@@ -108,7 +99,6 @@ class XGBoostModel(BaseModel):
         logger.info(f"Model saved to {path}")
         
     def load(self, path):
-        """Load XGBoost model."""
         self.model = xgb.XGBRegressor(
             tree_method='hist',
             enable_categorical=True

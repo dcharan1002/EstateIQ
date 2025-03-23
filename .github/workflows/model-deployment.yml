@@ -1,0 +1,70 @@
+name: Model Deployment Pipeline
+
+on:
+  workflow_run:
+    workflows: ["Model Training Pipeline"]
+    types:
+      - completed
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: estateiqclone
+  REGION: us-central1
+  ARTIFACT_REGISTRY: estateiq-models
+  MODEL_PATH: models/estate_price_prediction
+  SA_EMAIL: self-522@estateiqclone.iam.gserviceaccount.com
+  SERVICE_NAME: estateiq-prediction
+
+jobs:
+  deploy-model:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Google Auth
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        service_account: ${{ env.SA_EMAIL }}
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Verify Model Artifacts
+      run: |
+        if ! gcloud storage ls gs://${{ env.ARTIFACT_REGISTRY }}/${{ env.MODEL_PATH }}/current/metrics.json; then
+          echo "Model artifacts not found. Training may have failed."
+          exit 1
+        fi
+
+    - name: Deploy to Cloud Run
+      run: |
+        # Make script executable
+        chmod +x scripts/start_service.sh
+        
+        # Deploy using start_service.sh
+        ./scripts/start_service.sh \
+          --project-id ${{ env.PROJECT_ID }} \
+          --region ${{ env.REGION }} \
+          --service-name ${{ env.SERVICE_NAME }} \
+          --artifact-registry ${{ env.ARTIFACT_REGISTRY }} \
+          --model-path ${{ env.MODEL_PATH }}
+
+    - name: Test Deployment
+      run: |
+        # Make test script executable
+        chmod +x scripts/test_inference.py
+        
+        # Wait for service to be ready
+        sleep 30
+        
+        # Run test script
+        ./scripts/test_inference.py
+
+    - name: Notify on Failure
+      if: failure()
+      run: |
+        echo "Model deployment pipeline failed. Please check the logs for details."
+        exit 1

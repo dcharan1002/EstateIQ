@@ -12,18 +12,6 @@ import xgboost as xgb
 logger = logging.getLogger(__name__)
 
 def generate_shap_analysis(model, X_test, results_dir="results", max_display=10):
-    """
-    Generate SHAP values and plots for model interpretation
-    
-    Args:
-        model: Trained model instance
-        X_test: Test features
-        results_dir: Directory to save plots and analysis
-        max_display: Maximum number of features to display in summary plots
-        
-    Returns:
-        dict: Dictionary containing SHAP values and plot paths
-    """
     try:
         # Ensure results directory exists
         results_dir = Path(results_dir)

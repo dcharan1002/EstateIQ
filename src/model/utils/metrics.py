@@ -5,17 +5,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 def calculate_metrics(model, X_test, y_test):
-    """
-    Calculate model performance metrics
-    
-    Args:
-        model: Trained model instance
-        X_test: Test features
-        y_test: True test values
-        
-    Returns:
-        dict: Dictionary containing calculated metrics
-    """
     try:
         # Generate predictions
         y_pred = model.predict(X_test)

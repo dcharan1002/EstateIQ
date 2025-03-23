@@ -35,7 +35,6 @@ def setup_mlflow():
     mlflow.set_experiment("estate_price_prediction")
 
 def cleaning(X_train,X_test):
-    """Clean and encode categorical features."""
     X_train_encoded = X_train.copy()
     X_test_encoded = X_test.copy()
     cat_cols = X_train.select_dtypes(include=['object', 'category']).columns
@@ -51,7 +50,6 @@ def cleaning(X_train,X_test):
     return X_train_encoded, X_test_encoded, encoders
 
 def load_data():
-    """Load preprocessed data from Data directory"""
     data_dir = Path("Data/final")
     logger.info(f"Looking for data in: {data_dir}")
     
@@ -83,7 +81,6 @@ def load_data():
         raise
 
 def create_hyperparameter_results(model, metrics):
-    """Create hyperparameter results dataframe for visualization"""
     return pd.DataFrame([{
         'config': 'default',
         'r2': metrics['r2'],
@@ -92,7 +89,6 @@ def create_hyperparameter_results(model, metrics):
     }])
 
 def save_model(model, model_dir):
-    """Save model to specified directory with proper serialization"""
     model_dir.mkdir(parents=True, exist_ok=True)
     model_path = model_dir / "model_latest.joblib"
     
@@ -105,7 +101,6 @@ def save_model(model, model_dir):
     return model_path
 
 def train_model():
-    """Train and validate model with MLflow tracking"""
     training_context = {
         "stage": "initialization",
         "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -239,7 +234,7 @@ def train_model():
                 logger.info("Checking for bias in the best model...")
                 bias_report = check_bias(
                     best_model.model if hasattr(best_model, 'model') else best_model,
-                    X_test,  # Use raw data for bias checking
+                    X_test, 
                     y_test
                 )
                 
@@ -249,7 +244,7 @@ def train_model():
                 validation_passed, validation_metrics, _ = validate_model(
                     model=best_model.model if hasattr(best_model, 'model') else best_model,
                     run_id=parent_run.info.run_id,
-                    X_val=X_test,  # Use encoded data for validation
+                    X_val=X_test,
                     y_val=y_test
                 )
                 
