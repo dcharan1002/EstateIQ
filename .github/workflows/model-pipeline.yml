@@ -47,26 +47,45 @@ jobs:
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
 
-    - name: Pull DVC data
+    - name: Setup DVC and Pull Data
       run: |
-        dvc remote modify data credentialpath key.json
         echo '${{ secrets.GCP_SA_KEY }}' > key.json
-        dvc pull
-
-    - name: Debug - List Data Directory
-      run: |
-        echo "Current directory:"
-        pwd
-        echo "\nListing root directory:"
+        
+        # Configure DVC remotes
+        dvc remote modify myremote credentialpath key.json
+        dvc remote modify data credentialpath key.json
+        
+        # Debug - List remotes
+        echo "DVC Remotes:"
+        dvc remote list
+        
+        # Pull data
+        dvc pull || echo "Warning: DVC pull had issues"
+        
+        # Create Data directory if it doesn't exist
+        mkdir -p Data
+        
+        # Create symbolic link from data to Data
+        if [ -d "data" ]; then
+          echo "Creating symbolic links from data/ to Data/"
+          for dir in data/*; do
+            if [ -d "$dir" ]; then
+              base=$(basename "$dir")
+              mkdir -p "Data/$base"
+              cp -r "$dir"/* "Data/$base/"
+            fi
+          done
+        else
+          echo "Warning: data directory not found after DVC pull"
+        fi
+        
+        # Debug - List directories
+        echo "Directory structure after setup:"
         ls -la
-        echo "\nListing Data directory:"
-        ls -la Data/
-        echo "\nListing Data/final directory:"
-        ls -la Data/final/
-        echo "\nListing Data/features directory:"
-        ls -la Data/features/
-        echo "\nChecking if X_train.csv exists:"
-        find . -name "X_train.csv"
+        echo "Data directory contents:"
+        ls -la Data/ || echo "No Data directory"
+        echo "data directory contents:"
+        ls -la data/ || echo "No data directory"
 
     - name: Trigger Cloud Build
       run: |
@@ -74,6 +93,7 @@ jobs:
           --config=cloudbuild.yaml \
           --project=${{ env.PROJECT_ID }} \
           --substitutions=_PROJECT_ID=${{ env.PROJECT_ID }},_ARTIFACT_REGISTRY=${{ env.ARTIFACT_REGISTRY }},_MODEL_PATH=${{ env.MODEL_PATH }},_REGION=${{ env.REGION }},_MLFLOW_TRACKING_URI=${{ env.MLFLOW_TRACKING_URI }},_GMAIL_APP_PASSWORD="${{ env.GMAIL_APP_PASSWORD }}",_NOTIFICATION_EMAIL="${{ env.NOTIFICATION_EMAIL }}"
+
     - name: Check Build Status
       id: check_build
       run: |

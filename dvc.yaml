@@ -3,36 +3,36 @@ stages:
     cmd: "echo 'Tracking data files'"
     outs:
       # Raw data
-      - Data/Raw/boston_2025.csv
+      - data/raw/boston_2025.csv
       # Cleaned data
-      - Data/Processed/clean/X_train_clean.csv:
+      - data/processed/clean/X_train_clean.csv:
           persist: true
-      - Data/Processed/clean/X_test_clean.csv:
+      - data/processed/clean/X_test_clean.csv:
           persist: true
-      - Data/Processed/clean/y_train_clean.csv:
+      - data/processed/clean/y_train_clean.csv:
           persist: true
-      - Data/Processed/clean/y_test_clean.csv:
+      - data/processed/clean/y_test_clean.csv:
           persist: true
       # Engineered features
-      - Data/Processed/engineered/X_train_engineered.csv:
+      - data/processed/engineered/X_train_engineered.csv:
           persist: true
-      - Data/Processed/engineered/X_test_engineered.csv:
+      - data/processed/engineered/X_test_engineered.csv:
           persist: true
       # Reports and visualizations
-      - Data/features/feature_analysis.png:
+      - data/features/feature_analysis.png:
           persist: true
-      - Data/features/feature_report.md:
+      - data/features/feature_report.md:
           persist: true
-      - Data/features/feature_summary.csv:
+      - data/features/feature_summary.csv:
           persist: true
-      - Data/features/feature_importance_details.csv:
+      - data/features/feature_importance_details.csv:
           persist: true
       # Final datasets
-      - Data/final/X_train.csv:
+      - data/final/X_train.csv:
           persist: true
-      - Data/final/X_test.csv:
+      - data/final/X_test.csv:
           persist: true
-      - Data/final/y_train.csv:
+      - data/final/y_train.csv:
           persist: true
-      - Data/final/y_test.csv:
+      - data/final/y_test.csv:
           persist: true
