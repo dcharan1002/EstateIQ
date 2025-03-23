@@ -9,48 +9,96 @@ on:
   workflow_dispatch:
 
 env:
-  PROJECT_ID: estateiq-project
+  PROJECT_ID: estateiqclone
   REGION: us-central1
   ARTIFACT_REGISTRY: estateiq-models
   MODEL_PATH: models/estate_price_prediction
+  SA_EMAIL: self-522@estateiqclone.iam.gserviceaccount.com
+  # Add substitution values that match cloudbuild.yaml
+  GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+  NOTIFICATION_EMAIL: ${{ secrets.NOTIFICATION_EMAIL }}
+  MLFLOW_TRACKING_URI: sqlite:///mlflow.db
 
 jobs:
-  train-and-validate:
+  train-and-deploy:
     runs-on: ubuntu-latest
     
     steps:
     - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install dvc[gs] google-cloud-storage
+        pip install -r requirements.txt
 
     - name: Google Auth
       uses: google-github-actions/auth@v0
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
+        service_account: ${{ env.SA_EMAIL }}
 
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v0
+
+    - name: Pull DVC data
+      run: |
+        dvc remote add -d data gs://boston_estate_data/Data/
+        dvc remote modify data credentialpath key.json
+        echo '${{ secrets.GCP_SA_KEY }}' > key.json
+        dvc pull
 
     - name: Trigger Cloud Build
       run: |
         gcloud builds submit \
           --config cloudbuild.yaml \
-          --substitutions _ARTIFACT_REGISTRY=${{ env.ARTIFACT_REGISTRY }},_MODEL_PATH=${{ env.MODEL_PATH }}
+          --project ${{ env.PROJECT_ID }} \
+          --substitutions \
+          _PROJECT_ID=${{ env.PROJECT_ID }},\
+          _ARTIFACT_REGISTRY=${{ env.ARTIFACT_REGISTRY }},\
+          _MODEL_PATH=${{ env.MODEL_PATH }},\
+          _REGION=${{ env.REGION }},\
+          _MLFLOW_TRACKING_URI=${{ env.MLFLOW_TRACKING_URI }},\
+          _GMAIL_APP_PASSWORD=${{ env.GMAIL_APP_PASSWORD }},\
+          _NOTIFICATION_EMAIL=${{ env.NOTIFICATION_EMAIL }}
 
-    - name: Check Training Results
-      id: check-training
+    - name: Check Build Status
+      id: check_build
       run: |
-        # Get the latest metrics from GCS
-        gsutil cp gs://${{ env.ARTIFACT_REGISTRY }}/${{ env.MODEL_PATH }}/current/metrics.json ./latest_metrics.json
-        
-        # Set status based on validation success
-        if jq -e '.validation_passed == true' ./latest_metrics.json; then
-          echo "::set-output name=deploy::true"
+        # Wait for metrics file
+        for i in {1..10}; do
+          if gcloud storage ls gs://${{ env.ARTIFACT_REGISTRY }}/${{ env.MODEL_PATH }}/current/metrics.json; then
+            echo "Metrics file found"
+            break
+          fi
+          if [ $i -eq 10 ]; then
+            echo "Timeout waiting for metrics file"
+            exit 1
+          fi
+          sleep 30
+        done
+
+        # Check metrics
+        gcloud storage cp gs://${{ env.ARTIFACT_REGISTRY }}/${{ env.MODEL_PATH }}/current/metrics.json ./metrics.json
+        if jq -e '.metrics.r2' metrics.json > /dev/null; then
+          echo "deploy=true" >> $GITHUB_OUTPUT
         else
-          echo "::set-output name=deploy::false"
+          echo "deploy=false" >> $GITHUB_OUTPUT
         fi
 
-    - name: Trigger Deployment Update
-      if: steps.check-training.outputs.deploy == 'true'
+    - name: Deploy to Cloud Run
+      if: steps.check_build.outputs.deploy == 'true'
       run: |
-        gcloud run services update estateiq-prediction \
+        gcloud run deploy estateiq-prediction \
           --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/estateiq-models/prediction-service:latest \
-          --region ${{ env.REGION }}
+          --region ${{ env.REGION }} \
+          --platform managed \
+          --allow-unauthenticated \
+          --project ${{ env.PROJECT_ID }}

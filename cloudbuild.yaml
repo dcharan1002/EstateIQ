@@ -1,98 +1,161 @@
-steps:
-# Install dependencies
-- name: python:3.10
-  entrypoint: pip
-  args: ["install", "-r", "requirements.txt", "--user"]
+# EstateIQ Model Training and Deployment Pipeline
+# This Cloud Build configuration handles:
+# 1. Training and validating the model
+# 2. Uploading model artifacts if validation passes
+# 3. Building and pushing the model serving container
 
-# Run model training and validation
+steps:
+######################
+# Model Training     #
+######################
 - name: python:3.10
-  entrypoint: python
-  args: ["-m", "src.model.train"]
+  id: train
+  volumes:
+  - name: model-data
+    path: /model-data
+  entrypoint: bash
+  args:
+    - '-c'
+    - |
+      # Create necessary directories
+      mkdir -p /model-data/artifacts /model-data/results/validation
+      
+      # Install dependencies
+      pip install --no-cache-dir -r requirements.txt
+
+      # Run training with proper Python path
+      export PYTHONPATH=/workspace
+      python -m src.model.train
+      
+      # Copy artifacts to shared volume
+      cp artifacts/model_latest.joblib /model-data/artifacts/
+      cp results/validation/validation_latest.json /model-data/results/validation/
+
   env:
+    # MLOps Configuration
     - 'ARTIFACT_REGISTRY=${_ARTIFACT_REGISTRY}'
     - 'MODEL_PATH=${_MODEL_PATH}'
+    - 'REGION=${_REGION}'
+    - 'PROJECT_ID=${_PROJECT_ID}'
+    - 'MLFLOW_TRACKING_URI=${_MLFLOW_TRACKING_URI}'
+    
+    # Notification Settings
+    - 'GMAIL_APP_PASSWORD=${_GMAIL_APP_PASSWORD}'
+    - 'NOTIFICATION_EMAIL=${_NOTIFICATION_EMAIL}'
+    
+    # Model Validation Thresholds
+    - 'VALIDATION_R2_THRESHOLD=0.8'
+    - 'VALIDATION_RMSE_THRESHOLD=1.0'
+    - 'VALIDATION_MAE_THRESHOLD=0.8'
+    - 'BIAS_PREDICTION_DISPARITY_THRESHOLD=0.1'
+    - 'BIAS_PERFORMANCE_DISPARITY_THRESHOLD=0.1'
+    - 'BIAS_CHECK_FEATURES=STRUCTURE_CLASS,OWNER_OCC,OVERALL_COND,INT_COND'
 
-# Check if model validation passed and compare performance
-- name: gcr.io/cloud-builders/gcloud
+######################
+# Model Validation   #
+######################
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+  id: validate
+  volumes:
+  - name: model-data
+    path: /model-data
+  waitFor: ['train']
   entrypoint: 'bash'
   args:
     - '-c'
     - |
-      set -e
+      # Install required packages
+      apt-get update && apt-get install -y jq bc
       
-      # First check if validation passed
-      if ! jq -e '.validation_passed == true' ./results/validation/latest_metrics.json; then
-        echo "Model validation failed"
+      echo "Checking local validation results..."
+      
+      # Check if validation file exists
+      if [ ! -f "/model-data/results/validation/validation_latest.json" ]; then
+        echo "Validation file not found"
         exit 1
       fi
       
-      # Then compare with current model if it exists
+      # Extract new model metrics
+      jq -r '.metrics.r2' "/model-data/results/validation/validation_latest.json" > /model-data/new_r2.txt
+      
+      # Check if metrics exist
+      if [ ! -s "/model-data/new_r2.txt" ]; then
+        echo "No metrics found in validation results"
+        exit 1
+      fi
+      
+      echo "Checking metrics against thresholds..."
+      
+      # Check if current production model exists
       if gsutil -q stat gs://${_ARTIFACT_REGISTRY}/${_MODEL_PATH}/current/metrics.json; then
-        gsutil cp gs://${_ARTIFACT_REGISTRY}/${_MODEL_PATH}/current/metrics.json ./current_metrics.json
-        NEW_R2=$(jq '.metrics.r2' results/validation/latest_metrics.json)
-        CURRENT_R2=$(jq '.metrics.r2' ./current_metrics.json)
+        echo "Found existing production model, comparing metrics..."
+        gsutil cp gs://${_ARTIFACT_REGISTRY}/${_MODEL_PATH}/current/metrics.json /model-data/current_metrics.json
+        jq -r '.metrics.r2' /model-data/current_metrics.json > /model-data/current_r2.txt
         
-        if (( $(echo "$NEW_R2 <= $CURRENT_R2" | bc -l) )); then
-          echo "New model (R2: $NEW_R2) does not outperform current model (R2: $CURRENT_R2)"
+        new_r2=$(cat /model-data/new_r2.txt)
+        current_r2=$(cat /model-data/current_r2.txt)
+        
+        echo "New R2: $new_r2"
+        echo "Current R2: $current_r2"
+        
+        if (( $(echo "$new_r2 <= $current_r2" | bc -l) )); then
+          echo "New model ($new_r2) not better than current ($current_r2)"
           exit 1
         fi
-        
-        echo "New model (R2: $NEW_R2) outperforms current model (R2: $CURRENT_R2)"
+        echo "New model ($new_r2) better than current ($current_r2)"
+      else
+        echo "No current production model found. This will be the first deployment."
       fi
 
-# Upload new model artifacts if validation passed and performance improved
-- name: gcr.io/cloud-builders/gcloud
+######################
+# Artifact Upload    #
+######################
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+  id: upload
+  volumes:
+  - name: model-data
+    path: /model-data
+  waitFor: ['validate']
   entrypoint: 'bash'
   args:
     - '-c'
     - |
-      TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-      
-      # Upload versioned copy
-      gsutil cp artifacts/model_latest.joblib \
-        gs://${_ARTIFACT_REGISTRY}/${_MODEL_PATH}/versions/$TIMESTAMP/model.joblib
-      gsutil cp results/validation/latest_metrics.json \
-        gs://${_ARTIFACT_REGISTRY}/${_MODEL_PATH}/versions/$TIMESTAMP/metrics.json
-      
-      # Update current version
-      gsutil cp artifacts/model_latest.joblib \
+      # Update production version
+      gsutil cp /model-data/artifacts/model_latest.joblib \
         gs://${_ARTIFACT_REGISTRY}/${_MODEL_PATH}/current/model.joblib
-      gsutil cp results/validation/latest_metrics.json \
+      gsutil cp /model-data/results/validation/validation_latest.json \
         gs://${_ARTIFACT_REGISTRY}/${_MODEL_PATH}/current/metrics.json
 
-# Build and push the serving container
+######################
+# Container Build    #
+######################
 - name: 'gcr.io/cloud-builders/docker'
+  id: build
+  waitFor: ['upload']
   args: [
     'build',
-    '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/estateiq-models/prediction-service:${_VERSION}',
+    '-t', '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/estateiq-models/prediction-service:latest',
     '-f', 'src/deployment/Dockerfile',
     '.'
   ]
 
+# Push latest version
 - name: 'gcr.io/cloud-builders/docker'
-  args: [
-    'tag',
-    '${_REGION}-docker.pkg.dev/${PROJECT_ID}/estateiq-models/prediction-service:${_VERSION}',
-    '${_REGION}-docker.pkg.dev/${PROJECT_ID}/estateiq-models/prediction-service:latest'
-  ]
-
-- name: 'gcr.io/cloud-builders/docker'
+  id: push
+  waitFor: ['build']
   args: [
     'push',
-    '${_REGION}-docker.pkg.dev/${PROJECT_ID}/estateiq-models/prediction-service:${_VERSION}'
-  ]
-
-- name: 'gcr.io/cloud-builders/docker'
-  args: [
-    'push',
-    '${_REGION}-docker.pkg.dev/${PROJECT_ID}/estateiq-models/prediction-service:latest'
+    '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/estateiq-models/prediction-service:latest'
   ]
 
 substitutions:
+  _PROJECT_ID: estateiqclone
   _ARTIFACT_REGISTRY: estateiq-models
   _MODEL_PATH: models/estate_price_prediction
   _REGION: us-central1
-  _VERSION: ${BUILD_ID}
+  _MLFLOW_TRACKING_URI: sqlite:///mlflow.db
+  _GMAIL_APP_PASSWORD: ""
+  _NOTIFICATION_EMAIL: ""
 
 options:
   dynamic_substitutions: true

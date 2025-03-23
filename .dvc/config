@@ -1,4 +1,6 @@
 [core]
-    remote = myremote
+    remote = data
 ['remote "myremote"']
     url = gs://boston_estate_data/Data/
+['remote "data"']
+    url = gs://boston_prop_data/Data/

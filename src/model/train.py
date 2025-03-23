@@ -6,23 +6,26 @@ import logging
 import pandas as pd
 import joblib
 from datetime import datetime
-from models import get_model
-from utils.shap_analysis import generate_shap_analysis
-from utils.metrics import calculate_metrics
-from utils.visualization import (
+from .models import get_model
+from .utils.shap_analysis import generate_shap_analysis
+from .utils.metrics import calculate_metrics
+from .utils.visualization import (
     plot_residuals,
     plot_predictions,
     plot_model_comparison,
     plot_hyperparameter_sensitivity
 )
-from utils.notifications import (
+from .utils.notifications import (
     notify_training_completion,
     notify_error
 )
-from validate import validate_model, check_bias
+from .validate import validate_model, check_bias, VALIDATION_THRESHOLDS, BIAS_THRESHOLDS
 from pathlib import Path
 from sklearn.preprocessing import LabelEncoder
+from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -112,7 +115,7 @@ def train_model():
         setup_mlflow()
         logger.info("MLflow configured successfully")
         
-        # Load data including both raw and encoded versions
+        # Load raw data first
         X_train_raw, X_train, X_test_raw, X_test, y_train, y_test, encoders = load_data()
         logger.info("Data loaded successfully")
         training_context["stage"] = "data_loading_complete"
@@ -232,12 +235,6 @@ def train_model():
                 mlflow.log_metrics(best_metrics)
                 mlflow.log_artifact(str(model_path))
                 
-                validation_thresholds = {
-                    'r2': 0.8,
-                    'rmse': 1.0,
-                    'mae': 0.8
-                }
-                
                 # Check bias using raw data for interpretable results
                 logger.info("Checking for bias in the best model...")
                 bias_report = check_bias(
@@ -262,7 +259,7 @@ def train_model():
                     metrics=best_metrics,
                     plots=all_plots,
                     run_id=parent_run.info.run_id,
-                    validation_thresholds=validation_thresholds,
+                    validation_thresholds=VALIDATION_THRESHOLDS,
                     bias_report=bias_report,
                     success=validation_passed
                 )

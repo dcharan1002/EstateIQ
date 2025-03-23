@@ -1,8 +1,8 @@
 """Model registry for EstateIQ."""
 import logging
 from pathlib import Path
-from random_forest import RandomForestModel
-from xgboost_model import XGBoostModel
+from .random_forest import RandomForestModel
+from .xgboost_model import XGBoostModel
 
 logger = logging.getLogger(__name__)
 

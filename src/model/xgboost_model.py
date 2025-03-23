@@ -5,7 +5,7 @@ import mlflow.xgboost
 import xgboost as xgb
 from sklearn.model_selection import RandomizedSearchCV
 from pathlib import Path
-from base import BaseModel, MODEL_DIR, RESULTS_DIR, logger
+from .base import BaseModel, MODEL_DIR, RESULTS_DIR, logger
 
 class XGBoostModel(BaseModel):
     def __init__(self, name="XGBoost", n_estimators=100, **kwargs):

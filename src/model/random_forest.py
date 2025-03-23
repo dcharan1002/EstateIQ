@@ -5,7 +5,7 @@ import mlflow.sklearn
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import RandomizedSearchCV
 from pathlib import Path
-from base import BaseModel, MODEL_DIR, RESULTS_DIR, logger
+from .base import BaseModel, MODEL_DIR, RESULTS_DIR, logger
 
 class RandomForestModel(BaseModel):
     def __init__(self, name="RandomForest", n_estimators=100, **kwargs):

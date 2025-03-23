@@ -6,36 +6,40 @@ import mlflow
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from utils.notifications import notify_error
-from utils.visualization import plot_bias_analysis, create_metrics_visualization
+from .utils.notifications import notify_error
+from .utils.visualization import plot_bias_analysis, create_metrics_visualization
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Validation thresholds
+# Load validation thresholds from environment
 VALIDATION_THRESHOLDS = {
-    'r2': 0.8,
-    'rmse': 1.0,
-    'mae': 0.8
+    'r2': float(os.getenv('VALIDATION_R2_THRESHOLD', 0.8)),
+    'rmse': float(os.getenv('VALIDATION_RMSE_THRESHOLD', 1.0)),
+    'mae': float(os.getenv('VALIDATION_MAE_THRESHOLD', 0.8))
 }
 
-# Bias thresholds
+# Load bias thresholds from environment
 BIAS_THRESHOLDS = {
-    'prediction_disparity': 0.1,
-    'performance_disparity': 0.1
+    'prediction_disparity': float(os.getenv('BIAS_PREDICTION_DISPARITY_THRESHOLD', 0.1)),
+    'performance_disparity': float(os.getenv('BIAS_PERFORMANCE_DISPARITY_THRESHOLD', 0.1))
 }
 
-# Features to check for bias
-BIAS_CHECK_FEATURES = [
-    'STRUCTURE_CLASS',  # Building structure classification
-    'OWNER_OCC',       # Owner occupied status
-    'OVERALL_COND',    # Overall condition
-    'INT_COND'         # Interior condition
-]
+# Get bias check features from environment
+BIAS_CHECK_FEATURES = os.getenv('BIAS_CHECK_FEATURES', '').split(',')
+if not BIAS_CHECK_FEATURES[0]:  # Handle empty string case
+    BIAS_CHECK_FEATURES = ['STRUCTURE_CLASS', 'OWNER_OCC', 'OVERALL_COND', 'LU', 'INT_COND']
 
-def check_bias(model, X, y, sensitive_features=BIAS_CHECK_FEATURES):
+def check_bias(model, X, y, sensitive_features=None):
     """Check for bias across different demographic and structural groups"""
+    if sensitive_features is None:
+        sensitive_features = BIAS_CHECK_FEATURES
+
     bias_report = {
         'bias_detected': False,
         'details': {},
@@ -44,8 +48,9 @@ def check_bias(model, X, y, sensitive_features=BIAS_CHECK_FEATURES):
     }
 
     predictions = model.predict(X)
+    
+    # Filter for available features
     available_features = [f for f in sensitive_features if f in X.columns]
-
     if not available_features:
         logger.warning("No bias check features found in dataset")
         return bias_report
@@ -137,7 +142,7 @@ def validate_model(model, run_id, X_val, y_val):
         metrics_plot = create_metrics_visualization(metrics, VALIDATION_THRESHOLDS)
         validation_context["metrics_plot"] = metrics_plot
 
-        # Check bias across multiple features
+        # Check bias
         bias_report = check_bias(model, X_val, y_val)
         validation_context.update({
             "stage": "bias_checked",
@@ -172,7 +177,7 @@ def validate_model(model, run_id, X_val, y_val):
             }
 
             # Save results locally
-            results_path = results_dir / f"validation_{timestamp}.json"
+            results_path = results_dir / f"validation_latest.json"
             with open(results_path, 'w') as f:
                 json.dump(results, f, indent=2)
 
