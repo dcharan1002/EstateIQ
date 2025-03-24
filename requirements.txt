@@ -41,3 +41,6 @@ mypy>=0.900
 # DVC for data versioning
 dvc>=2.0.0
 dvc[gs]>=2.0.0  # For Google Cloud Storage support
+
+# dotenv for environment variables
+python-dotenv>=0.19.0

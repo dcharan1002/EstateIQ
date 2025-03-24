@@ -79,6 +79,9 @@ jobs:
         
         # Wait for service to be ready
         sleep 30
+
+        # Install dotenv
+        pip install python-dotenv
         
         # Run test script (will use env variables)
         python scripts/test_inference.py
