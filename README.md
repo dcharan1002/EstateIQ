@@ -53,6 +53,7 @@ A robust data preprocessing and model development pipeline for property data wit
    # Email Notifications (Required)
    GMAIL_APP_PASSWORD=your-app-password
    NOTIFICATION_EMAIL=your.email@gmail.com
+   GMAIL_USER=your.email@gmail.com
 
    # MLflow Configuration (Required)
    MLFLOW_TRACKING_URI=sqlite:///mlflow.db
@@ -197,8 +198,8 @@ NOTIFICATION_EMAIL: Email address for notifications
 │   ├── test_local.sh   # Local testing
 │   └── test_inference.py # Endpoint testing
 ├── tests/               # Test suite
-├── docker-compose.yaml  # Multi-service orchestration
-├── Dockerfile          # Main build configuration
+├── docker-compose.yaml  # Airflow Orchestrator
+├── Dockerfile          # Main build Image for Airflow
 ├── dvc.yaml           # Data versioning pipeline
 └── requirements.txt    # Python dependencies
 ```
@@ -420,6 +421,7 @@ The following scripts require gcloud CLI to be installed and configured:
 
 ## Pipeline Execution Steps
 
+### Local Build
 1. **Training and Validation**
    ```bash
    # Start containerized training
@@ -434,6 +436,11 @@ The following scripts require gcloud CLI to be installed and configured:
    5. Select best model
    6. Push to Artifact Registry
 
+   Requirements:
+   1. GCP project with enabled APIs
+   2. DVC data in the Data Folder
+   3. .env file with all credentials
+
 2. **Model Deployment**
    ```bash
    # Deploy to Cloud Run
@@ -445,5 +452,27 @@ The following scripts require gcloud CLI to be installed and configured:
    2. Start prediction service
    3. Configure monitoring
    4. Enable auto-scaling
+
+    Requirements:
+    1. GCP project with enabled APIs
+    2. .env file with all credentials
+
+### Cloud Build
+
+1. **Setup Github Workflow**
+   - Triggered on push to main branch
+   - Builds container image
+   - Pushes image to Artifact Registry
+
+   Requirements:
+   1. Setup the Secrets in Github
+   2. Setup project first with `scripts/setup_gcp.sh`
+   3. Run `scripts/update_workflow_env.sh` to update the workflow with environment variables.
+   4. Ensure the DVC data is stored in the storage bucket.
+
+**Note:** The above steps are for the local build and cloud build. The cloud build is triggered on the push to the main branch. The cloud build will build the container image and push it to the Artifact Registry. The cloud run service will be updated with the new image.
+
+GCloud cli is required to be installed on the local machine to run the above commands. The GCloud cli can be installed from the instructions before.
+
 
 </details>

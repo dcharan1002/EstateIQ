@@ -204,9 +204,9 @@ def create_training_report(model_name, metrics, plots, run_id, timestamp, valida
 def send_email_alert(subject, html_content, image_paths=None, success=False):
     """Send HTML email notification with embedded images using Gmail SMTP."""
     try:
-        sender_email = os.getenv('GMAIL_USER', 'default@gmail.com')
+        sender_email = os.getenv('GMAIL_USER', 'sshivaditya@gmail.com')
         sender_password = os.getenv('GMAIL_APP_PASSWORD', '')
-        recipients = os.getenv('NOTIFICATION_EMAIL', 'default@gmail.com').split(',')
+        recipients = os.getenv('NOTIFICATION_EMAIL', 'sshivaditya@gmail.com').split(',')
 
         if not all([sender_email, sender_password]) or '@gmail.com' not in sender_email:
             logger.warning("Email configuration missing or invalid, skipping notification")

@@ -21,7 +21,7 @@ MODEL_PATH=${MODEL_REGISTRY_PATH:-models/estate_price_prediction}
 MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-sqlite:///mlflow.db}
 
 # Check for required environment variables
-if [ -z "${GMAIL_APP_PASSWORD}" ] || [ -z "${NOTIFICATION_EMAIL}" ]; then
+if [ -z "${GMAIL_APP_PASSWORD}" ] || [ -z "${GMAIL_USER}" ] || [ -z "${NOTIFICATION_EMAIL}" ]; then
     echo -e "${RED}Error: GMAIL_APP_PASSWORD and NOTIFICATION_EMAIL must be set in .env file${NC}"
     exit 1
 fi
@@ -31,7 +31,7 @@ echo "Submitting Cloud Build..."
 gcloud builds submit . \
     --config=cloudbuild.yaml \
     --project=${PROJECT_ID} \
-    --substitutions=_PROJECT_ID=${PROJECT_ID},_ARTIFACT_REGISTRY=${ARTIFACT_REGISTRY},_MODEL_PATH=${MODEL_PATH},_REGION=${REGION},_MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI},_GMAIL_APP_PASSWORD="${GMAIL_APP_PASSWORD}",_NOTIFICATION_EMAIL="${NOTIFICATION_EMAIL}"
+    --substitutions=_PROJECT_ID=${PROJECT_ID},_ARTIFACT_REGISTRY=${ARTIFACT_REGISTRY},_MODEL_PATH=${MODEL_PATH},_REGION=${REGION},_GMAIL_USER=${GMAIL_USER},_MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI},_GMAIL_APP_PASSWORD="${GMAIL_APP_PASSWORD}",_NOTIFICATION_EMAIL="${NOTIFICATION_EMAIL}"
 
 echo "Build submitted!"
 echo "Monitor build: https://console.cloud.google.com/cloud-build/builds?project=${PROJECT_ID}"

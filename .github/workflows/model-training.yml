@@ -14,6 +14,7 @@ env:
   ARTIFACT_REGISTRY: estateiq-models
   MODEL_PATH: models/estate_price_prediction
   SA_EMAIL: self-522@estateiqclone.iam.gserviceaccount.com
+  GMAIL_USER: ${{ secrets.GMAIL_USER }}
   GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
   NOTIFICATION_EMAIL: ${{ secrets.NOTIFICATION_EMAIL }}
   MLFLOW_TRACKING_URI: sqlite:///mlflow.db
@@ -91,7 +92,7 @@ jobs:
         gcloud builds submit . \
           --config=cloudbuild.yaml \
           --project=${{ env.PROJECT_ID }} \
-          --substitutions=_PROJECT_ID=${{ env.PROJECT_ID }},_ARTIFACT_REGISTRY=${{ env.ARTIFACT_REGISTRY }},_MODEL_PATH=${{ env.MODEL_PATH }},_REGION=${{ env.REGION }},_MLFLOW_TRACKING_URI=${{ env.MLFLOW_TRACKING_URI }},_GMAIL_APP_PASSWORD="${{ env.GMAIL_APP_PASSWORD }}",_NOTIFICATION_EMAIL="${{ env.NOTIFICATION_EMAIL }}"
+          --substitutions=_PROJECT_ID=${{ env.PROJECT_ID }},_ARTIFACT_REGISTRY=${{ env.ARTIFACT_REGISTRY }},_MODEL_PATH=${{ env.MODEL_PATH }},_REGION=${{ env.REGION }},_MLFLOW_TRACKING_URI=${{ env.MLFLOW_TRACKING_URI }},_GMAIL_USER="${{ env.GMAIL_USER }}",_GMAIL_APP_PASSWORD="${{ env.GMAIL_APP_PASSWORD }}",_NOTIFICATION_EMAIL="${{ env.NOTIFICATION_EMAIL }}"
 
     - name: Verify Training Success
       id: verify_training

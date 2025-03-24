@@ -59,6 +59,7 @@ steps:
     # Notification Settings
     - 'GMAIL_APP_PASSWORD=${_GMAIL_APP_PASSWORD}'
     - 'NOTIFICATION_EMAIL=${_NOTIFICATION_EMAIL}'
+    - 'GMAIL_USER=${_GMAIL_USER}'
     
     # Model Validation Thresholds
     - 'VALIDATION_R2_THRESHOLD=0.8'
@@ -169,6 +170,7 @@ substitutions:
   _REGION: us-central1
   _MLFLOW_TRACKING_URI: sqlite:///mlflow.db
   _GMAIL_APP_PASSWORD: ""
+  _GMAIL_USER: ""
   _NOTIFICATION_EMAIL: ""
 
 options:
