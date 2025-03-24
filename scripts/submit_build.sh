@@ -1,21 +1,28 @@
 #!/bin/bash
 set -e
 
-# Default values
-PROJECT_ID="estateiqclone"
-ARTIFACT_REGISTRY="estateiq-models"
-MODEL_PATH="models/estate_price_prediction"
-REGION="us-central1"
-MLFLOW_TRACKING_URI="sqlite:///mlflow.db"
+# Colors for output
+RED='\033[0;31m'
+NC='\033[0m'
 
-# Load environment variables if .env exists
-if [ -f .env ]; then
+# Load environment variables from .env file
+if [ -f ".env" ]; then
     source .env
+else
+    echo -e "${RED}Error: .env file not found. Please run setup_gcp.sh first.${NC}"
+    exit 1
 fi
+
+# Set defaults from environment or fallback
+PROJECT_ID=${GOOGLE_CLOUD_PROJECT:-estateiqclone}
+ARTIFACT_REGISTRY=${ARTIFACT_REGISTRY:-estateiq-models}
+REGION=${REGION:-us-central1}
+MODEL_PATH=${MODEL_REGISTRY_PATH:-models/estate_price_prediction}
+MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-sqlite:///mlflow.db}
 
 # Check for required environment variables
 if [ -z "${GMAIL_APP_PASSWORD}" ] || [ -z "${NOTIFICATION_EMAIL}" ]; then
-    echo "Error: GMAIL_APP_PASSWORD and NOTIFICATION_EMAIL must be set in .env file"
+    echo -e "${RED}Error: GMAIL_APP_PASSWORD and NOTIFICATION_EMAIL must be set in .env file${NC}"
     exit 1
 fi
 

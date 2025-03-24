@@ -2,14 +2,23 @@
 import json
 import argparse
 import requests
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+if os.path.exists(".env"):
+    load_dotenv()
 
 def get_service_url(local=False):
     """Get the service URL"""
     if local:
-        return "http://localhost:8080"
+        port = os.getenv("PORT", "8080")
+        return f"http://localhost:{port}"
     
     # Get Cloud Run service URL
-    cmd = "gcloud run services describe estateiq-prediction --platform managed --region us-central1 --format='get(status.url)'"
+    region = os.getenv("REGION", "us-central1")
+    project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "estateiqclone")
+    cmd = f"gcloud run services describe estateiq-prediction --platform managed --region {region} --project {project_id} --format='get(status.url)'"
     import subprocess
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     if result.returncode != 0:

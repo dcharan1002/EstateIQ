@@ -23,12 +23,6 @@ VALIDATION_THRESHOLDS = {
     'mae': float(os.getenv('VALIDATION_MAE_THRESHOLD', 0.8))
 }
 
-# Load bias thresholds from environment
-BIAS_THRESHOLDS = {
-    'prediction_disparity': float(os.getenv('BIAS_PREDICTION_DISPARITY_THRESHOLD', 0.1)),
-    'performance_disparity': float(os.getenv('BIAS_PERFORMANCE_DISPARITY_THRESHOLD', 0.1))
-}
-
 def check_bias(model, X, y):    
     # Initialize bias analyzer
     analyzer = BiasAnalyzer(model)

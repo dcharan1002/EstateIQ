@@ -7,8 +7,17 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Default values
-PORT=8080
+# Load environment variables from .env file
+if [ -f ".env" ]; then
+    source .env
+else
+    echo -e "${RED}Error: .env file not found. Please run setup_gcp.sh first.${NC}"
+    exit 1
+fi
+
+# Set defaults from environment or fallback
+PORT=${PORT:-8080}
+MODEL_DIR=${MODEL_DIR:-$(pwd)/artifacts}
 PYTHONPATH=$(pwd)
 
 echo -e "${YELLOW}Starting local EstateIQ server${NC}"
@@ -31,9 +40,10 @@ if [ -f "results/validation/validation_latest.json" ]; then
 fi
 
 # Export environment variables
+# Export environment variables
 export PYTHONPATH
-export MODEL_DIR="$(pwd)/artifacts"
-export PORT=$PORT
+export MODEL_DIR
+export PORT
 
 # Start Flask app
 echo -e "\n${YELLOW}Starting Flask application on port ${PORT}...${NC}"

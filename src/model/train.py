@@ -20,7 +20,7 @@ from .utils.notifications import (
     notify_training_completion,
     notify_error
 )
-from .validate import validate_model, check_bias, VALIDATION_THRESHOLDS, BIAS_THRESHOLDS
+from .validate import validate_model, VALIDATION_THRESHOLDS
 from pathlib import Path
 from sklearn.preprocessing import LabelEncoder
 from dotenv import load_dotenv
@@ -31,9 +31,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def setup_mlflow():
-    """Configure MLflow with local tracking"""
-    mlflow.set_tracking_uri("sqlite:///mlflow.db")
-    mlflow.set_experiment("estate_price_prediction")
+    """Configure MLflow with environment-based tracking"""
+    tracking_uri = os.getenv('MLFLOW_TRACKING_URI', 'sqlite:///mlflow.db')
+    experiment_name = os.getenv('MLFLOW_EXPERIMENT_NAME', 'estate_price_prediction')
+    
+    mlflow.set_tracking_uri(tracking_uri)
+    mlflow.set_experiment(experiment_name)
+    
+    logger.info(f"MLflow configured with tracking URI: {tracking_uri}")
+    logger.info(f"MLflow experiment name: {experiment_name}")
 
 def cleaning(X_train,X_test):
     X_train_encoded = X_train.copy()

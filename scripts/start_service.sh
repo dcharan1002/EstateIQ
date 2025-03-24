@@ -7,13 +7,21 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Default values
-PROJECT_ID="estateiqclone"
-REGION="us-central1"
+# Load environment variables from .env file
+if [ -f ".env" ]; then
+    source .env
+else
+    echo -e "${RED}Error: .env file not found. Please run setup_gcp.sh first.${NC}"
+    exit 1
+fi
+
+# Set defaults from environment or fallback values
+PROJECT_ID=${GOOGLE_CLOUD_PROJECT:-estateiqclone}
+REGION=${REGION:-us-central1}
 SERVICE_NAME="estateiq-prediction"
-ARTIFACT_REGISTRY="estateiq-models"
-MODEL_PATH="models/estate_price_prediction"
-SERVICE_ACCOUNT="self-522@estateiqclone.iam.gserviceaccount.com"
+ARTIFACT_REGISTRY=${ARTIFACT_REGISTRY:-estateiq-models}
+MODEL_PATH=${MODEL_REGISTRY_PATH:-models/estate_price_prediction}
+SERVICE_ACCOUNT=${SERVICE_ACCOUNT:-self-522@estateiqclone.iam.gserviceaccount.com}
 
 # Parse command line arguments
 while [[ "$#" -gt 0 ]]; do
@@ -37,7 +45,7 @@ echo "Model Path: $MODEL_PATH"
 
 # Deploy to Cloud Run with environment variables
 gcloud run deploy ${SERVICE_NAME} \
-    --image ${REGION}-docker.pkg.dev/${PROJECT_ID}/estateiq-models/prediction-service:latest \
+    --image ${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REGISTRY}/prediction-service:latest \
     --region ${REGION} \
     --platform managed \
     --allow-unauthenticated \

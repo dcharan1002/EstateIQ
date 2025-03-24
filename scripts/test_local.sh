@@ -7,8 +7,17 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Default values
-PORT=8080
+# Load environment variables from .env file
+if [ -f ".env" ]; then
+    source .env
+else
+    echo -e "${RED}Error: .env file not found. Please run setup_gcp.sh first.${NC}"
+    exit 1
+fi
+
+# Set defaults from environment or fallback
+PORT=${PORT:-8080}
+MODEL_DIR=${MODEL_DIR:-$(pwd)/artifacts}
 PYTHONPATH=$(pwd)
 APP_PID=""
 
@@ -43,8 +52,13 @@ fi
 
 # Export environment variables
 export PYTHONPATH
-export MODEL_DIR="$(pwd)/artifacts"
-export PORT=$PORT
+export MODEL_DIR
+export PORT
+
+# Set validation thresholds from environment
+export VALIDATION_R2_THRESHOLD=${VALIDATION_R2_THRESHOLD:-0.8}
+export VALIDATION_RMSE_THRESHOLD=${VALIDATION_RMSE_THRESHOLD:-1.0}
+export VALIDATION_MAE_THRESHOLD=${VALIDATION_MAE_THRESHOLD:-0.8}
 
 # Create test data with minimal features
 echo -e "\n${YELLOW}Creating test data with minimal features...${NC}"
