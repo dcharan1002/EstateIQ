@@ -7,6 +7,8 @@ import numpy as np
 from flask import Flask, request, jsonify
 from pathlib import Path
 from datetime import datetime
+from flask_cors import CORS
+
 
 # Configure logging
 logging.basicConfig(
@@ -16,10 +18,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+CORS(app)
 
 # Model loading
 MODEL_DIR = Path(os.getenv('MODEL_DIR', '/app/models'))
-MODEL_PATH = MODEL_DIR / "current" / "model.joblib"
+MODEL_PATH = Path(__file__).resolve().parent.parent.parent / "artifacts" / "model_latest.joblib"
 METRICS_PATH = MODEL_DIR / "current" / "metrics.json"
 
 def load_model():
@@ -77,6 +80,10 @@ def prepare_features(input_data):
             features[feature] = defaults[feature]
             
     return pd.DataFrame([features])
+@app.route('/')
+def index():
+    return "Welcome to EstateIQ API!"
+
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -162,5 +169,5 @@ def metadata():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 8080))
+    port = int(os.getenv('PORT', 3000))
     app.run(host='0.0.0.0', port=port)
