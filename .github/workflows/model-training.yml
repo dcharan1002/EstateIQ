@@ -52,7 +52,6 @@ jobs:
         echo '${{ secrets.GCP_SA_KEY }}' > key.json
         
         # Configure DVC remotes
-        dvc remote modify myremote credentialpath key.json
         dvc remote modify data credentialpath key.json
         
         # Debug - List remotes
