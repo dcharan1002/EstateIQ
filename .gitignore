@@ -8,7 +8,6 @@ __pycache__/
 
 # Model specific
 *.pkl
-*.json
 *.npy
 *.csv
 label_encoders.npy
