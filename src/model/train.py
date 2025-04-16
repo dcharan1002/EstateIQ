@@ -6,6 +6,9 @@ import logging
 import pandas as pd
 import joblib
 from datetime import datetime
+
+import numpy as np
+from sqlalchemy import Column
 from .models import get_model
 from .utils.bias_analysis import BiasAnalyzer
 from .utils.shap_analysis import generate_shap_analysis
@@ -41,6 +44,139 @@ def setup_mlflow():
     logger.info(f"MLflow configured with tracking URI: {tracking_uri}")
     logger.info(f"MLflow experiment name: {experiment_name}")
 
+def select_features(X):
+    """Select the 15 most important features from the dataset"""
+    # Select base numeric features
+    numeric_features = [
+        'GROSS_AREA', 'LIVING_AREA', 'LAND_SF', 'YR_BUILT',
+        'BED_RMS', 'FULL_BTH', 'HLF_BTH', 'NUM_PARKING',
+        'FIREPLACES', 'KITCHENS', 'TT_RMS', 'ZIP_CODE',
+        'YR_REMODEL'
+    ]
+    
+    # Select categorical features (already one-hot encoded)
+    categorical_features = [
+        # Structure and material features
+        'STRUCTURE_CLASS_C - BRICK/CONCR',
+        'STRUCTURE_CLASS_D - WOOD/FRAME',
+        'STRUCTURE_CLASS_B - REINF CONCR',
+        
+        # Interior condition features
+        'INT_COND_E - EXCELLENT',
+        'INT_COND_G - GOOD',
+        'INT_COND_A - AVERAGE',
+        'INT_COND_F - FAIR',
+        'INT_COND_P - POOR',
+        
+        # Overall condition features
+        'OVERALL_COND_E - EXCELLENT',
+        'OVERALL_COND_VG - VERY GOOD',
+        'OVERALL_COND_G - GOOD',
+        'OVERALL_COND_A - AVERAGE',
+        'OVERALL_COND_F - FAIR',
+        'OVERALL_COND_P - POOR',
+        
+        # Kitchen features
+        'KITCHEN_STYLE2_M - MODERN',
+        'KITCHEN_STYLE2_L - LUXURY',
+        'KITCHEN_STYLE2_S - SEMI-MODERN',
+        'KITCHEN_TYPE_F - FULL EAT IN',
+        
+        # Amenities and systems
+        'AC_TYPE_C - CENTRAL AC',
+        'AC_TYPE_D - DUCTLESS AC',
+        'HEAT_TYPE_F - FORCED HOT AIR',
+        'HEAT_TYPE_W - HT WATER/STEAM',
+        
+        # Property characteristics
+        'PROP_VIEW_E - EXCELLENT',
+        'PROP_VIEW_G - GOOD',
+        'CORNER_UNIT_Y - YES',
+        'ORIENTATION_E - END',
+        'ORIENTATION_F - FRONT/STREET',
+        
+        # Exterior features
+        'EXT_COND_E - EXCELLENT',
+        'EXT_COND_G - GOOD',
+        'ROOF_COVER_S - SLATE',
+        'ROOF_COVER_A - ASPHALT SHINGL'
+    ]
+    
+    # Check which columns are actually in the DataFrame
+    available_numeric = [col for col in numeric_features if col in X.columns]
+    available_categorical = [col for col in categorical_features if col in X.columns]
+    
+    # Copy selected features
+    selected = X[available_numeric + available_categorical].copy()
+    
+    # Add derived features
+    selected['property_age'] = 2025 - selected['YR_BUILT'].astype(int)
+    selected['total_bathrooms'] = selected['FULL_BTH'] + 0.5 * selected['HLF_BTH']
+    # Calculate ratios with safe division
+    selected['living_area_ratio'] = np.where(
+        selected['GROSS_AREA'] > 0,
+        selected['LIVING_AREA'] / selected['GROSS_AREA'],
+        0
+    )
+    
+    # Add new derived features
+    if 'YR_REMODEL' in selected.columns:
+        selected['years_since_renovation'] = 2025 - selected['YR_REMODEL'].fillna(selected['YR_BUILT']).astype(int)
+        selected['has_renovation'] = (selected['YR_REMODEL'] > selected['YR_BUILT']).astype(int)
+    
+    if 'LAND_SF' in selected.columns and 'GROSS_AREA' in selected.columns:
+        selected['floor_area_ratio'] = np.where(
+            selected['LAND_SF'] > 0,
+            selected['GROSS_AREA'] / selected['LAND_SF'],
+            0
+        )
+        selected['non_living_area'] = np.maximum(0, selected['GROSS_AREA'] - selected['LIVING_AREA'])
+    
+    if 'TT_RMS' in selected.columns and 'LIVING_AREA' in selected.columns:
+        selected['rooms_per_area'] = np.where(
+            selected['LIVING_AREA'] > 0,
+            selected['TT_RMS'] / selected['LIVING_AREA'],
+            0
+        )
+    
+    # Replace any remaining infinities or NaNs with 0
+    selected = selected.replace([np.inf, -np.inf], np.nan).fillna(0)
+    
+    # Create composite condition scores
+    condition_map = {'E': 5, 'VG': 4.5, 'G': 4, 'A': 3, 'F': 2, 'P': 1}
+    
+    # Helper function to calculate condition score
+    def calculate_condition_score(row, condition_cols):
+        max_score = 3  # default score
+        for col in condition_cols:
+            if row[col]:  # if this condition is true
+                # Extract condition code (e.g., 'E' from 'INT_COND_E - EXCELLENT')
+                cond_code = col.split(' - ')[0].split('_')[-1]
+                score = condition_map.get(cond_code, 0)
+                max_score = max(max_score, score)
+        return max_score
+
+    # Calculate condition scores
+    int_cond_cols = [col for col in selected.columns if col.startswith('INT_COND_')]
+    if int_cond_cols:
+        selected['interior_score'] = selected.apply(
+            lambda row: calculate_condition_score(row, int_cond_cols), axis=1
+        )
+    
+    ext_cond_cols = [col for col in selected.columns if col.startswith('EXT_COND_')]
+    if ext_cond_cols:
+        selected['exterior_score'] = selected.apply(
+            lambda row: calculate_condition_score(row, ext_cond_cols), axis=1
+        )
+    
+    overall_cond_cols = [col for col in selected.columns if col.startswith('OVERALL_COND_')]
+    if overall_cond_cols:
+        selected['overall_score'] = selected.apply(
+            lambda row: calculate_condition_score(row, overall_cond_cols), axis=1
+        )
+    
+    return selected
+
 def cleaning(X_train,X_test):
     X_train_encoded = X_train.copy()
     X_test_encoded = X_test.copy()
@@ -61,19 +197,36 @@ def load_data():
     logger.info(f"Looking for data in: {data_dir}")
     
     try:
-        X_train = pd.read_csv(data_dir / "X_train.csv").head(1000)
-        X_test = pd.read_csv(data_dir / "X_test.csv").head(1000)
-        y_train = pd.read_csv(data_dir / "y_train.csv").squeeze().iloc[:1000]
-        y_test = pd.read_csv(data_dir / "y_test.csv").squeeze().iloc[:1000]
-        X_train['BLDG_TYPE'] = X_train['BLDG_TYPE'].astype('category')
-        X_test['BLDG_TYPE'] = X_test['BLDG_TYPE'].astype('category')
+        # Read CSV with more robust parsing settings
+        csv_options = {
+            'on_bad_lines': 'skip',  # Skip problematic rows
+            'escapechar': '\\',      # Handle escaped characters
+            'quoting': 1,            # Quote mode QUOTE_ALL
+            'encoding': 'utf-8'      # Explicit encoding
+        }
+        
+        # Read the CSV files
+        X_train = pd.read_csv(data_dir / "X_train.csv", **csv_options)
+        X_test = pd.read_csv(data_dir / "X_test.csv", **csv_options)
+        y_train = pd.read_csv(data_dir / "y_train.csv", **csv_options).squeeze()
+        y_test = pd.read_csv(data_dir / "y_test.csv", **csv_options).squeeze()
+
+        # Clean column names by stripping whitespace
+        X_train.columns = X_train.columns.str.strip()
+        X_test.columns = X_test.columns.str.strip()
         logger.info(f"Loaded data: X_train shape={X_train.shape}, X_test shape={X_test.shape}")
         
-        # Store original categorical features
-        for col in ['STRUCTURE_CLASS', 'OWNER_OCC', 'OVERALL_COND', 'INT_COND']:
-            if col in X_train.columns:
-                X_train[col] = X_train[col].astype('category')
-                X_test[col] = X_test[col].astype('category')
+        X_train = select_features(X_train)
+        X_test = select_features(X_test)
+        
+        # Log column names to help with debugging
+        logger.info("Available columns in X_train:")
+        for col in X_train.columns:
+            logger.info(f"  {col}")
+        
+        logger.info("Available columns in X_test:")
+        for col in X_test.columns:
+            logger.info(f"  {col}")
         
         # Get encoded versions for training
         X_train_encoded, X_test_encoded, encoders = cleaning(X_train, X_test)
@@ -100,12 +253,19 @@ def load_data():
         notify_error(e, context)
         raise
 
-def create_hyperparameter_results(model, metrics):
+def create_hyperparameter_results(model, metrics: dict[str, float] | None) -> pd.DataFrame:
+    if metrics is None:
+        return pd.DataFrame([{
+            'config': 'tuned',
+            'r2': 0.0,
+            'rmse': 0.0,
+            'mae': 0.0
+        }])
     return pd.DataFrame([{
-        'config': 'default',
-        'r2': metrics['r2'],
-        'rmse': metrics['rmse'],
-        'mae': metrics['mae']
+        'config': 'tuned',
+        'r2': metrics.get('r2', 0.0),
+        'rmse': metrics.get('rmse', 0.0),
+        'mae': metrics.get('mae', 0.0)
     }])
 
 def save_model(model, model_dir):
@@ -203,8 +363,20 @@ def train_model():
         training_context["stage"] = "data_loading_complete"
 
         model_configs = {
-            'random_forest': {'n_estimators': 100},
-            'xgboost': {'n_estimators': 100, 'learning_rate': 0.1}
+            'random_forest': {
+                'n_estimators': 500,
+                'max_features': 'sqrt',
+                'min_samples_leaf': 2,
+                'max_depth': 20
+            },
+            'xgboost': {
+                'n_estimators': 500,
+                'learning_rate': 0.05,
+                'max_depth': 8,
+                'min_child_weight': 3,
+                'subsample': 0.8,
+                'colsample_bytree': 0.8
+            }
         }
 
         best_model = None
@@ -236,7 +408,16 @@ def train_model():
                 
                 with mlflow.start_run(run_name=model_name, nested=True) as run:
                     model = get_model(model_name, **params)
-                    model.train(X_train, y_train)
+                    
+                    # First tune hyperparameters
+                    logger.info(f"Tuning hyperparameters for {model_name}...")
+                    model.tune_hyperparameters(X_train, y_train)
+                    
+                    # Then train with tuned parameters and validation data if XGBoost
+                    if model_name == 'xgboost':
+                        model.train(X_train, y_train, X_val, y_val)
+                    else:
+                        model.train(X_train, y_train)
                     
                     # Generate predictions
                     y_pred = model.predict(X_test)
@@ -264,24 +445,25 @@ def train_model():
                     mlflow.log_artifact(sensitivity_path)
                     
                     # 4. SHAP Analysis
-                    logger.info(f"Generating SHAP analysis for {model_name}...")
-                    shap_analysis = generate_shap_analysis(
-                        model.model if hasattr(model, 'model') else model,
-                        X_test,
-                        results_dir=model_results_dir
-                    )
+                    # logger.info(f"Generating SHAP analysis for {model_name}...")
+                    # shap_analysis = generate_shap_analysis(
+                    #     model.model if hasattr(model, 'model') else model,
+                    #     X_test,
+                    #     results_dir=model_results_dir # type: ignore
+                    # )
                     
-                    # Add SHAP plots
-                    if shap_analysis and 'plots' in shap_analysis:
-                        for plot_name, plot_path in shap_analysis['plots'].items():
-                            plots[f"{model_name} {plot_name}"] = plot_path
-                            if os.path.exists(plot_path):
-                                mlflow.log_artifact(plot_path)
+                    # # Add SHAP plots
+                    # if shap_analysis and 'plots' in shap_analysis:
+                    #     for plot_name, plot_path in shap_analysis['plots'].items():
+                    #         plots[f"{model_name} {plot_name}"] = plot_path
+                    #         if os.path.exists(plot_path):
+                    #             mlflow.log_artifact(plot_path)
                     
                     # Store all plots for this model
                     all_plots.update(plots)
                     
-                    mlflow.log_metrics(metrics)
+                    if metrics is not None:
+                        mlflow.log_metrics(metrics)
                     if model_name == 'xgboost':
                         mlflow.xgboost.log_model(model.model, model_name)
                     else:
@@ -314,7 +496,8 @@ def train_model():
                 mlflow.set_tag("best_model", "true")
                 mlflow.set_tag("best_model_type", best_model.name)
                 mlflow.set_tag("best_run_id", best_run_id)
-                mlflow.log_metrics(best_metrics)
+                if best_metrics is not None:
+                    mlflow.log_metrics(best_metrics)
                 mlflow.log_artifact(str(model_path))
                 
                 # Step 1: Model Validation
@@ -353,7 +536,7 @@ def train_model():
                 
                 # Send training report
                 notify_training_completion(
-                    model_name=best_model.name if hasattr(best_model, 'name') else best_model.__class__.__name__,
+                    model_name=getattr(best_model, 'name', best_model.__class__.__name__),
                     metrics=best_metrics,
                     plots=all_plots,
                     run_id=parent_run.info.run_id,
@@ -362,7 +545,7 @@ def train_model():
                     success=validation_passed
                 )
                 
-                model_name = best_model.name if hasattr(best_model, 'name') else best_model.__class__.__name__
+                model_name = getattr(best_model, 'name', best_model.__class__.__name__)
                 logger.info(f"Best model: {model_name}")
                 logger.info(f"Best model metrics: {best_metrics}")
                 

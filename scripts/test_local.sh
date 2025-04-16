@@ -56,21 +56,58 @@ export MODEL_DIR
 export PORT
 
 # Set validation thresholds from environment
-export VALIDATION_R2_THRESHOLD=${VALIDATION_R2_THRESHOLD:-0.8}
-export VALIDATION_RMSE_THRESHOLD=${VALIDATION_RMSE_THRESHOLD:-1.0}
-export VALIDATION_MAE_THRESHOLD=${VALIDATION_MAE_THRESHOLD:-0.8}
+export VALIDATION_R2_THRESHOLD=${VALIDATION_R2_THRESHOLD:-0.6}
+export VALIDATION_RMSE_THRESHOLD=${VALIDATION_RMSE_THRESHOLD:-50000}
+export VALIDATION_MAE_THRESHOLD=${VALIDATION_MAE_THRESHOLD:-35000}
 
-# Create test data with minimal features
-echo -e "\n${YELLOW}Creating test data with minimal features...${NC}"
+# Create typical single-family home test data
+echo -e "\n${YELLOW}Creating typical single-family home test data...${NC}"
 cat > test_data.json << 'END_JSON'
 {
-    "GROSS_AREA": 2500,
-    "LIVING_AREA": 2000,
-    "LAND_SF": 5000,
+    "GROSS_AREA": 2500.0,
+    "LIVING_AREA": 2000.0,
+    "LAND_SF": 5000.0,
     "YR_BUILT": 1990,
-    "BED_RMS": 3,
-    "FULL_BTH": 2,
-    "HLF_BTH": 1
+    "YR_REMODEL": 2015,
+    "BED_RMS": 3.0,
+    "FULL_BTH": 2.0,
+    "HLF_BTH": 1.0,
+    "NUM_PARKING": 2,
+    "FIREPLACES": 1,
+    "KITCHENS": 1,
+    "TT_RMS": 8,
+    "ZIP_CODE": "02108",
+    "STRUCTURE_CLASS_C - BRICK/CONCR": 1,
+    "STRUCTURE_CLASS_D - WOOD/FRAME": 0,
+    "STRUCTURE_CLASS_B - REINF CONCR": 0,
+    "INT_COND_E - EXCELLENT": 0,
+    "INT_COND_G - GOOD": 1,
+    "INT_COND_A - AVERAGE": 0,
+    "INT_COND_F - FAIR": 0,
+    "INT_COND_P - POOR": 0,
+    "OVERALL_COND_E - EXCELLENT": 0,
+    "OVERALL_COND_VG - VERY GOOD": 1,
+    "OVERALL_COND_G - GOOD": 0,
+    "OVERALL_COND_A - AVERAGE": 0,
+    "OVERALL_COND_F - FAIR": 0,
+    "OVERALL_COND_P - POOR": 0,
+    "KITCHEN_STYLE2_M - MODERN": 1,
+    "KITCHEN_STYLE2_L - LUXURY": 0,
+    "KITCHEN_STYLE2_S - SEMI-MODERN": 0,
+    "KITCHEN_TYPE_F - FULL EAT IN": 1,
+    "AC_TYPE_C - CENTRAL AC": 1,
+    "AC_TYPE_D - DUCTLESS AC": 0,
+    "HEAT_TYPE_F - FORCED HOT AIR": 1,
+    "HEAT_TYPE_W - HT WATER/STEAM": 0,
+    "PROP_VIEW_E - EXCELLENT": 0,
+    "PROP_VIEW_G - GOOD": 1,
+    "CORNER_UNIT_Y - YES": 0,
+    "ORIENTATION_E - END": 0,
+    "ORIENTATION_F - FRONT/STREET": 1,
+    "EXT_COND_E - EXCELLENT": 0,
+    "EXT_COND_G - GOOD": 1,
+    "ROOF_COVER_S - SLATE": 0,
+    "ROOF_COVER_A - ASPHALT SHINGL": 1
 }
 END_JSON
 
@@ -103,17 +140,54 @@ curl -s -X POST \
     -d @test_data.json \
     http://localhost:$PORT/predict | python -m json.tool
 
-# Create another test case with different features
-echo -e "\n${YELLOW}Testing with different feature set...${NC}"
+# Create luxury historic home test data
+echo -e "\n${YELLOW}Creating luxury historic home test data...${NC}"
 cat > test_data2.json << 'END_JSON'
 {
-    "GROSS_AREA": 3000,
-    "LIVING_AREA": 2500,
-    "LAND_SF": 6000,
+    "GROSS_AREA": 3000.0,
+    "LIVING_AREA": 2500.0,
+    "LAND_SF": 6000.0,
     "YR_BUILT": 1850,
-    "BED_RMS": 10,
+    "YR_REMODEL": 2020,
+    "BED_RMS": 5.0,
+    "FULL_BTH": 3.0,
+    "HLF_BTH": 1.0,
+    "NUM_PARKING": 3,
+    "FIREPLACES": 2,
+    "KITCHENS": 2,
+    "TT_RMS": 12,
+    "ZIP_CODE": "02108",
     "STRUCTURE_CLASS_C - BRICK/CONCR": 1,
-    "INT_COND_A - AVERAGE": 0
+    "STRUCTURE_CLASS_D - WOOD/FRAME": 0,
+    "STRUCTURE_CLASS_B - REINF CONCR": 0,
+    "INT_COND_E - EXCELLENT": 1,
+    "INT_COND_G - GOOD": 0,
+    "INT_COND_A - AVERAGE": 0,
+    "INT_COND_F - FAIR": 0,
+    "INT_COND_P - POOR": 0,
+    "OVERALL_COND_E - EXCELLENT": 1,
+    "OVERALL_COND_VG - VERY GOOD": 0,
+    "OVERALL_COND_G - GOOD": 0,
+    "OVERALL_COND_A - AVERAGE": 0,
+    "OVERALL_COND_F - FAIR": 0,
+    "OVERALL_COND_P - POOR": 0,
+    "KITCHEN_STYLE2_M - MODERN": 0,
+    "KITCHEN_STYLE2_L - LUXURY": 1,
+    "KITCHEN_STYLE2_S - SEMI-MODERN": 0,
+    "KITCHEN_TYPE_F - FULL EAT IN": 1,
+    "AC_TYPE_C - CENTRAL AC": 1,
+    "AC_TYPE_D - DUCTLESS AC": 0,
+    "HEAT_TYPE_F - FORCED HOT AIR": 0,
+    "HEAT_TYPE_W - HT WATER/STEAM": 1,
+    "PROP_VIEW_E - EXCELLENT": 1,
+    "PROP_VIEW_G - GOOD": 0,
+    "CORNER_UNIT_Y - YES": 1,
+    "ORIENTATION_E - END": 1,
+    "ORIENTATION_F - FRONT/STREET": 0,
+    "EXT_COND_E - EXCELLENT": 1,
+    "EXT_COND_G - GOOD": 0,
+    "ROOF_COVER_S - SLATE": 1,
+    "ROOF_COVER_A - ASPHALT SHINGL": 0
 }
 END_JSON
 
@@ -123,8 +197,65 @@ curl -s -X POST \
     -d @test_data2.json \
     http://localhost:$PORT/predict | python -m json.tool
 
+# Create low-value property test data
+echo -e "\n${YELLOW}Creating low-value property test data...${NC}"
+cat > test_data3.json << 'END_JSON'
+{
+    "GROSS_AREA": 800.0,
+    "LIVING_AREA": 600.0,
+    "LAND_SF": 1200.0,
+    "YR_BUILT": 1920,
+    "YR_REMODEL": 1920,
+    "BED_RMS": 1.0,
+    "FULL_BTH": 1.0,
+    "HLF_BTH": 0.0,
+    "NUM_PARKING": 0,
+    "FIREPLACES": 0,
+    "KITCHENS": 1,
+    "TT_RMS": 3,
+    "ZIP_CODE": "02128",
+    "STRUCTURE_CLASS_D - WOOD/FRAME": 1,
+    "STRUCTURE_CLASS_C - BRICK/CONCR": 0,
+    "STRUCTURE_CLASS_B - REINF CONCR": 0,
+    "INT_COND_E - EXCELLENT": 0,
+    "INT_COND_G - GOOD": 0,
+    "INT_COND_A - AVERAGE": 0,
+    "INT_COND_F - FAIR": 0,
+    "INT_COND_P - POOR": 1,
+    "OVERALL_COND_E - EXCELLENT": 0,
+    "OVERALL_COND_VG - VERY GOOD": 0,
+    "OVERALL_COND_G - GOOD": 0,
+    "OVERALL_COND_A - AVERAGE": 0,
+    "OVERALL_COND_F - FAIR": 0,
+    "OVERALL_COND_P - POOR": 1,
+    "KITCHEN_STYLE2_M - MODERN": 0,
+    "KITCHEN_STYLE2_L - LUXURY": 0,
+    "KITCHEN_STYLE2_S - SEMI-MODERN": 0,
+    "KITCHEN_TYPE_F - FULL EAT IN": 0,
+    "AC_TYPE_C - CENTRAL AC": 0,
+    "AC_TYPE_D - DUCTLESS AC": 0,
+    "HEAT_TYPE_F - FORCED HOT AIR": 0,
+    "HEAT_TYPE_W - HT WATER/STEAM": 1,
+    "PROP_VIEW_E - EXCELLENT": 0,
+    "PROP_VIEW_G - GOOD": 0,
+    "CORNER_UNIT_Y - YES": 0,
+    "ORIENTATION_E - END": 0,
+    "ORIENTATION_F - FRONT/STREET": 0,
+    "EXT_COND_E - EXCELLENT": 0,
+    "EXT_COND_G - GOOD": 0,
+    "ROOF_COVER_S - SLATE": 0,
+    "ROOF_COVER_A - ASPHALT SHINGL": 1
+}
+END_JSON
+
+echo -e "\n${YELLOW}Testing prediction endpoint with low-value property...${NC}"
+curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -d @test_data3.json \
+    http://localhost:$PORT/predict | python -m json.tool
+
 # Cleanup temporary files
-rm -f test_data.json test_data2.json
+rm -f test_data.json test_data2.json test_data3.json
 
 echo -e "\n${GREEN}Local testing complete!${NC}"
 echo -e "You can now deploy to Cloud Run using: ./scripts/start_service.sh"

@@ -86,6 +86,27 @@ jobs:
         # Run test script (will use env variables)
         python scripts/test_inference.py
 
+    - name: Get Cloud Run Service URL
+      id: get_url
+      run: |
+        echo "Fetching URL for service: ${{ env.SERVICE_NAME }}"
+        SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --platform managed --region ${{ env.REGION }} --format='value(status.url)' --project ${{ env.PROJECT_ID }})
+        if [ -z "$SERVICE_URL" ]; then
+          echo "::error::Failed to retrieve Cloud Run service URL."
+          exit 1
+        fi
+        echo "Service URL: ${SERVICE_URL}"
+        echo "SERVICE_URL=${SERVICE_URL}" >> $GITHUB_OUTPUT
+
+    - name: Update GitHub Secret NEXT_PUBLIC_API_URL_PROD
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SERVICE_URL: ${{ steps.get_url.outputs.SERVICE_URL }}
+      run: |
+        echo "Updating secret NEXT_PUBLIC_API_URL_PROD..."
+        echo "${SERVICE_URL}" | gh secret set NEXT_PUBLIC_API_URL_PROD --repo ${{ github.repository }}
+        echo "Secret NEXT_PUBLIC_API_URL_PROD updated successfully."
+
     - name: Notify on Failure
       if: failure()
       run: |

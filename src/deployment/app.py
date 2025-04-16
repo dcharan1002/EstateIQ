@@ -51,35 +51,141 @@ except Exception as e:
     logger.error(f"Failed to load model on startup: {e}")
     raise
 
-def get_feature_defaults():
-    """Get default values for each feature type"""
-    return {
-        'GROSS_AREA': 2000.0,
-        'LIVING_AREA': 1500.0,
-        'LAND_SF': 5000.0,
-        'YR_BUILT': 1980,
-        'YR_REMODEL': 1980,
-        'BED_RMS': 3.0,
-        'FULL_BTH': 2.0,
-        'HLF_BTH': 1.0,
-    }
-
 def prepare_features(input_data):
-    """Prepare input features with defaults for missing values"""
-    # Get default values
-    defaults = {feature: 0.0 for feature in EXPECTED_FEATURES}
-    feature_defaults = get_feature_defaults()
-    defaults.update(feature_defaults)
-
-    # Create feature vector with defaults
+    """Prepare features matching the exact column names from training data"""
     features = {}
-    for feature in EXPECTED_FEATURES:
-        if feature in input_data:
-            features[feature] = input_data[feature]
+    
+    # Base numeric features (exact names from CSV)
+    numeric_features = [
+        'GROSS_AREA', 'LIVING_AREA', 'LAND_SF', 'YR_BUILT',
+        'BED_RMS', 'FULL_BTH', 'HLF_BTH', 'NUM_PARKING',
+        'FIREPLACES', 'KITCHENS', 'TT_RMS', 'ZIP_CODE',
+        'YR_REMODEL'
+    ]
+    for feature in numeric_features:
+        # Convert ZIP_CODE from string to float if it's a string
+        if feature == 'ZIP_CODE' and isinstance(input_data.get(feature), str):
+            features[feature] = float(input_data.get(feature).lstrip('0'))
         else:
-            features[feature] = defaults[feature]
-            
-    return pd.DataFrame([features])
+            features[feature] = float(input_data.get(feature, 0))
+    
+    # Binary features (exact names from CSV)
+    binary_features = [
+        # Structure and material features
+        'STRUCTURE_CLASS_C - BRICK/CONCR',
+        'STRUCTURE_CLASS_D - WOOD/FRAME',
+        'STRUCTURE_CLASS_B - REINF CONCR',
+        
+        # Interior condition features
+        'INT_COND_E - EXCELLENT',
+        'INT_COND_G - GOOD',
+        'INT_COND_A - AVERAGE',
+        'INT_COND_F - FAIR',
+        'INT_COND_P - POOR',
+        
+        # Overall condition features
+        'OVERALL_COND_E - EXCELLENT',
+        'OVERALL_COND_VG - VERY GOOD',
+        'OVERALL_COND_G - GOOD',
+        'OVERALL_COND_A - AVERAGE',
+        'OVERALL_COND_F - FAIR',
+        'OVERALL_COND_P - POOR',
+        
+        # Kitchen features
+        'KITCHEN_STYLE2_M - MODERN',
+        'KITCHEN_STYLE2_L - LUXURY',
+        'KITCHEN_STYLE2_S - SEMI-MODERN',
+        'KITCHEN_TYPE_F - FULL EAT IN',
+        
+        # Amenities and systems
+        'AC_TYPE_C - CENTRAL AC',
+        'AC_TYPE_D - DUCTLESS AC',
+        'HEAT_TYPE_F - FORCED HOT AIR',
+        'HEAT_TYPE_W - HT WATER/STEAM',
+        
+        # Property characteristics
+        'PROP_VIEW_E - EXCELLENT',
+        'PROP_VIEW_G - GOOD',
+        'CORNER_UNIT_Y - YES',
+        'ORIENTATION_E - END',
+        'ORIENTATION_F - FRONT/STREET',
+        
+        # Exterior features
+        'EXT_COND_E - EXCELLENT',
+        'EXT_COND_G - GOOD',
+        'ROOF_COVER_S - SLATE',
+        'ROOF_COVER_A - ASPHALT SHINGL'
+    ]
+    
+    # Handle binary features
+    for feature in binary_features:
+        features[feature] = int(input_data.get(feature, 0))
+    
+    # Create initial DataFrame
+    X = pd.DataFrame([features])
+    
+    # Add derived features exactly as in train.py
+    X['property_age'] = 2025 - X['YR_BUILT'].astype(int)
+    X['total_bathrooms'] = X['FULL_BTH'] + 0.5 * X['HLF_BTH']
+    X['living_area_ratio'] = np.where(
+        X['GROSS_AREA'] > 0,
+        X['LIVING_AREA'] / X['GROSS_AREA'],
+        0
+    )
+    
+    # Handle renovation features
+    X['years_since_renovation'] = 2025 - X['YR_REMODEL'].fillna(X['YR_BUILT']).astype(int)
+    X['has_renovation'] = (X['YR_REMODEL'] > X['YR_BUILT']).astype(int)
+    
+    # Calculate area ratios
+    X['floor_area_ratio'] = np.where(
+        X['LAND_SF'] > 0,
+        X['GROSS_AREA'] / X['LAND_SF'],
+        0
+    )
+    X['non_living_area'] = np.maximum(0, X['GROSS_AREA'] - X['LIVING_AREA'])
+    X['rooms_per_area'] = np.where(
+        X['LIVING_AREA'] > 0,
+        X['TT_RMS'] / X['LIVING_AREA'],
+        0
+    )
+    
+    # Create condition scores using helper function
+    condition_map = {'E': 5, 'VG': 4.5, 'G': 4, 'A': 3, 'F': 2, 'P': 1}
+    
+    def calculate_condition_score(row, condition_cols):
+        max_score = 3  # default score
+        for col in condition_cols:
+            if row[col]:  # if this condition is true
+                cond_code = col.split(' - ')[0].split('_')[-1]
+                score = condition_map.get(cond_code, 0)
+                max_score = max(max_score, score)
+        return max_score
+    
+    # Calculate interior score
+    int_cond_cols = [col for col in X.columns if col.startswith('INT_COND_')]
+    if int_cond_cols:
+        X['interior_score'] = X.apply(
+            lambda row: calculate_condition_score(row, int_cond_cols), axis=1
+        )
+    
+    # Calculate exterior score
+    ext_cond_cols = [col for col in X.columns if col.startswith('EXT_COND_')]
+    if ext_cond_cols:
+        X['exterior_score'] = X.apply(
+            lambda row: calculate_condition_score(row, ext_cond_cols), axis=1
+        )
+    
+    # Calculate overall score
+    overall_cond_cols = [col for col in X.columns if col.startswith('OVERALL_COND_')]
+    if overall_cond_cols:
+        X['overall_score'] = X.apply(
+            lambda row: calculate_condition_score(row, overall_cond_cols), axis=1
+        )
+    
+    return X
+    
+    return df
 @app.route('/')
 def index():
     return "Welcome to EstateIQ API!"

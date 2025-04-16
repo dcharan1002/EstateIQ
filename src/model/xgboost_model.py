@@ -7,25 +7,33 @@ from sklearn.model_selection import RandomizedSearchCV
 from .base import BaseModel, MODEL_DIR, RESULTS_DIR, logger
 
 class XGBoostModel(BaseModel):
-    def __init__(self, name="XGBoost", n_estimators=100, **kwargs):
+    def __init__(self, name="XGBoost", n_estimators=100, learning_rate=0.01, random_state=42, **kwargs):
         super().__init__(name)
         self.model = xgb.XGBRegressor(
             n_estimators=n_estimators,
+            learning_rate=learning_rate,
             tree_method='hist',
             enable_categorical=True,
+            random_state=random_state,
+            eval_metric=['rmse', 'mae'],
             **kwargs
         )
         
-    def train(self, X_train, y_train):
-        """Train the XGBoost model."""
+    def train(self, X_train, y_train, X_val=None, y_val=None):
+        """Train the XGBoost model with early stopping if validation data is provided."""
         logger.info(f"\nTraining {self.name}...")
         start_time = pd.Timestamp.now()
-        
-        params = self.model.get_params()
-        params['tree_method'] = 'hist'
-        
 
-        self.model.fit(X_train, y_train)
+        # Configure model for early stopping if validation data is provided
+        if X_val is not None and y_val is not None:
+            self.model.set_params(
+                early_stopping_rounds=50,
+                eval_metric=['rmse', 'mae']
+            )
+            eval_set = [(X_train, y_train), (X_val, y_val)]
+            self.model.fit(X_train, y_train, eval_set=eval_set, verbose=100)
+        else:
+            self.model.fit(X_train, y_train)
         
         training_time = (pd.Timestamp.now() - start_time).total_seconds()
         logger.info(f"Training completed in {training_time:.2f} seconds")
@@ -43,11 +51,15 @@ class XGBoostModel(BaseModel):
         logger.info(f"\nTuning hyperparameters for {self.name}...")
         
         param_grid = {
-            'n_estimators': [100, 300],
-            'learning_rate': [0.01, 0.1],
-            'max_depth': [3, 6],
-            'subsample': [0.8, 1],
-            'colsample_bytree': [0.8, 1]
+            'n_estimators': [100, 200, 300, 500, 1000],
+            'learning_rate': [0.001, 0.01, 0.05, 0.1],
+            'max_depth': [3, 4, 5, 6, 7, 8],
+            'min_child_weight': [1, 3, 5, 7],
+            'subsample': [0.6, 0.7, 0.8, 0.9],
+            'colsample_bytree': [0.6, 0.7, 0.8, 0.9],
+            'gamma': [0, 0.1, 0.2, 0.3],
+            'reg_alpha': [0, 0.1, 1, 10],
+            'reg_lambda': [0, 0.1, 1, 10]
         }
         
         with mlflow.start_run(run_name=f"{self.name}_tuning", nested=True) as run:
@@ -64,8 +76,9 @@ class XGBoostModel(BaseModel):
                 estimator=base_estimator,
                 param_distributions=param_grid,
                 n_iter=5,
-                cv=3,
-                verbose=1,
+                cv=5,
+                verbose=2,
+                scoring='neg_root_mean_squared_error',
                 random_state=42,
                 n_jobs=-1
             )

@@ -6,9 +6,13 @@ from sklearn.model_selection import RandomizedSearchCV
 from .base import BaseModel, MODEL_DIR, RESULTS_DIR, logger
 
 class RandomForestModel(BaseModel):
-    def __init__(self, name="RandomForest", n_estimators=100, **kwargs):
+    def __init__(self, name="RandomForest", n_estimators=100, random_state=42, **kwargs):
         super().__init__(name)
-        self.model = RandomForestRegressor(n_estimators=n_estimators, **kwargs)
+        self.model = RandomForestRegressor(
+            n_estimators=n_estimators,
+            random_state=random_state,
+            **kwargs
+        )
         
     def train(self, X_train, y_train):
         logger.info(f"\nTraining {self.name}...")
@@ -31,12 +35,27 @@ class RandomForestModel(BaseModel):
     def tune_hyperparameters(self, X_train, y_train):
         logger.info(f"\nTuning hyperparameters for {self.name}...")
         
-        param_grid = {
-            'n_estimators': [100, 300],
-            'max_depth': [10, 20],
-            'min_samples_split': [2, 5],
-            'min_samples_leaf': [1, 2]
+        bootstrap_params = {
+            'n_estimators': [100, 200, 300, 500, 1000],
+            'max_depth': [None, 10, 20, 30, 40, 50],
+            'min_samples_split': [2, 5, 10, 15, 20],
+            'min_samples_leaf': [1, 2, 4, 6, 8],
+            'max_features': ['sqrt', 'log2', None],
+            'bootstrap': [True],
+            'max_samples': [0.7, 0.8, 0.9, None]
         }
+        
+        no_bootstrap_params = {
+            'n_estimators': [100, 200, 300, 500, 1000],
+            'max_depth': [None, 10, 20, 30, 40, 50],
+            'min_samples_split': [2, 5, 10, 15, 20],
+            'min_samples_leaf': [1, 2, 4, 6, 8],
+            'max_features': ['sqrt', 'log2', None],
+            'bootstrap': [False],
+            'max_samples': [None]  # Only None when bootstrap is False
+        }
+        
+        param_grid = [bootstrap_params, no_bootstrap_params]
         
         with mlflow.start_run(run_name=f"{self.name}_tuning", nested=True) as run:
             logger.info(f"Started hyperparameter tuning run: {run.info.run_id}")
@@ -44,9 +63,10 @@ class RandomForestModel(BaseModel):
             random_search = RandomizedSearchCV(
                 estimator=RandomForestRegressor(random_state=42),
                 param_distributions=param_grid,
-                n_iter=5,
-                cv=3,
+                n_iter=3,
+                cv=5,
                 verbose=1,
+                scoring='neg_root_mean_squared_error',
                 random_state=42,
                 n_jobs=-1
             )
