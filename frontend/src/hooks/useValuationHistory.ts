@@ -21,9 +21,12 @@ export function useValuationHistory() {
   const [history, setHistory] = useState<ValuationRecord[]>([]);
 
   useEffect(() => {
-    const stored = localStorage.getItem('valuation_history');
-    if (stored) {
-      setHistory(JSON.parse(stored));
+    // Ensure this runs only on the client
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('valuation_history');
+      if (stored) {
+        setHistory(JSON.parse(stored));
+      }
     }
   }, []);
 
@@ -37,13 +40,19 @@ export function useValuationHistory() {
 
     const updatedHistory = [newValuation, ...history].slice(0, 50); // Keep last 50 records
     setHistory(updatedHistory);
-    localStorage.setItem('valuation_history', JSON.stringify(updatedHistory));
+    // Ensure this runs only on the client
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('valuation_history', JSON.stringify(updatedHistory));
+    }
     return newValuation;
   };
 
   const clearHistory = () => {
     setHistory([]);
-    localStorage.removeItem('valuation_history');
+    // Ensure this runs only on the client
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('valuation_history');
+    }
   };
 
   return {

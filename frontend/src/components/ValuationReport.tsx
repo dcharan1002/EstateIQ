@@ -1,9 +1,11 @@
 "use client";
 
 import { useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { downloadPDF } from '@/lib/downloadPDF';
 import { useTheme } from 'next-themes';
-import PropertyMap from './PropertyMap';
+// Dynamically import PropertyMap with SSR disabled
+const PropertyMap = dynamic(() => import('./PropertyMap'), { ssr: false });
 
 import { FormData as ValuationReportPropForm } from '@/app/(dashboard)/valuation/page';
 
