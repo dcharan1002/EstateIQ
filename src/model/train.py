@@ -206,10 +206,10 @@ def load_data():
         }
         
         # Read the CSV files
-        X_train = pd.read_csv(data_dir / "X_train.csv", **csv_options)
-        X_test = pd.read_csv(data_dir / "X_test.csv", **csv_options)
-        y_train = pd.read_csv(data_dir / "y_train.csv", **csv_options).squeeze()
-        y_test = pd.read_csv(data_dir / "y_test.csv", **csv_options).squeeze()
+        X_train = pd.read_csv(data_dir / "X_train.csv", **csv_options).head(1000)
+        X_test = pd.read_csv(data_dir / "X_test.csv", **csv_options).head(1000)
+        y_train = pd.read_csv(data_dir / "y_train.csv", **csv_options).squeeze().iloc[:1000]
+        y_test = pd.read_csv(data_dir / "y_test.csv", **csv_options).squeeze().iloc[:1000]
 
         # Clean column names by stripping whitespace
         X_train.columns = X_train.columns.str.strip()

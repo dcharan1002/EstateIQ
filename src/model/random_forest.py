@@ -63,8 +63,8 @@ class RandomForestModel(BaseModel):
             random_search = RandomizedSearchCV(
                 estimator=RandomForestRegressor(random_state=42),
                 param_distributions=param_grid,
-                n_iter=3,
-                cv=5,
+                n_iter=1,
+                cv=1
                 verbose=1,
                 scoring='neg_root_mean_squared_error',
                 random_state=42,

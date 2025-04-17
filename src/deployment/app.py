@@ -22,7 +22,7 @@ CORS(app)
 
 # Model loading
 MODEL_DIR = Path(os.getenv('MODEL_DIR', '/app/models'))
-MODEL_PATH = Path(__file__).resolve().parent.parent.parent / "artifacts" / "model_latest.joblib"
+MODEL_PATH = MODEL_DIR / "current" / "model.joblib"
 METRICS_PATH = MODEL_DIR / "current" / "metrics.json"
 
 def load_model():
