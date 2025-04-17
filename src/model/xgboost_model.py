@@ -76,7 +76,7 @@ class XGBoostModel(BaseModel):
                 estimator=base_estimator,
                 param_distributions=param_grid,
                 n_iter=1,
-                cv=1,
+                cv=2,
                 verbose=2,
                 scoring='neg_root_mean_squared_error',
                 random_state=42,
