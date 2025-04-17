@@ -98,15 +98,6 @@ jobs:
         echo "Service URL: ${SERVICE_URL}"
         echo "SERVICE_URL=${SERVICE_URL}" >> $GITHUB_OUTPUT
 
-    - name: Update GitHub Secret NEXT_PUBLIC_API_URL_PROD
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        SERVICE_URL: ${{ steps.get_url.outputs.SERVICE_URL }}
-      run: |
-        echo "Updating secret NEXT_PUBLIC_API_URL_PROD..."
-        echo "${SERVICE_URL}" | gh secret set NEXT_PUBLIC_API_URL_PROD --repo ${{ github.repository }}
-        echo "Secret NEXT_PUBLIC_API_URL_PROD updated successfully."
-
     - name: Notify on Failure
       if: failure()
       run: |

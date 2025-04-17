@@ -1,0 +1,209 @@
+name: Model Monitoring
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # Run every Sunday at midnight
+  workflow_dispatch:      # Allow manual triggering
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+  PROJECT_ID: estateiqclone
+  REGION: us-central1
+  ARTIFACT_REGISTRY: estateiq-models
+  MODEL_PATH: models/estate_price_prediction
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install numpy pandas scikit-learn supabase-py scipy pandas_profiling dvc dvc[gs]
+
+    - name: Google Auth
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Create monitoring script
+      run: |
+        cat > monitor.py << 'EOL'
+        import os
+        import pandas as pd
+        import numpy as np
+        from scipy import stats
+        from supabase import create_client
+        from sklearn.metrics import mean_squared_error, mean_absolute_error
+        import joblib
+        from pandas_profiling import ProfileReport
+        
+        # Initialize Supabase client
+        supabase = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_KEY'])
+        
+        # Fetch recent feedback data
+        def fetch_feedback_data():
+            response = supabase.table('feedback') \
+                .select("*") \
+                .order('created_at', desc=True) \
+                .limit(100) \
+                .execute()
+            return pd.DataFrame(response.data)
+        
+        # Load production model
+        model = joblib.load('model.joblib')
+        
+        # Fetch test data used in training
+        def fetch_test_data():
+            df = pd.read_csv('Data/final/X_test.csv')
+            
+            # Log test data info
+            print("Test data loaded from Data/final/X_test.csv")
+            print(f"Shape: {df.shape}")
+            print("\nFeatures:")
+            print(df.columns.tolist())
+            print("\nSample data:")
+            print(df.head())
+            
+            return df
+        
+        # Calculate model performance metrics
+        def calculate_metrics(y_true, y_pred):
+            rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+            mae = mean_absolute_error(y_true, y_pred)
+            return rmse, mae
+        
+        # Detect data drift using KS test
+        def detect_data_drift(reference_data, current_data, threshold=0.05):
+            drift_detected = False
+            drift_features = []
+            
+            for column in reference_data.columns:
+                if reference_data[column].dtype in ['int64', 'float64']:
+                    statistic, p_value = stats.ks_2samp(
+                        reference_data[column],
+                        current_data[column]
+                    )
+                    if p_value < threshold:
+                        drift_detected = True
+                        drift_features.append(column)
+            
+            return drift_detected, drift_features
+        
+        def main():
+            # Fetch recent feedback
+            feedback_df = fetch_feedback_data()
+            
+            # Prepare actual vs predicted values
+            y_true = feedback_df['actual_price'].values
+            y_pred = feedback_df['predicted_price'].values
+            
+            # Calculate metrics on feedback data
+            rmse, mae = calculate_metrics(y_true, y_pred)
+            
+            # Load test data used in training
+            test_data = fetch_test_data()
+            
+            # Extract features from property_data JSON
+            feedback_features = pd.json_normalize(feedback_df['property_data'])
+            
+            # Ensure features match test data
+            common_features = list(set(test_data.columns) & set(feedback_features.columns))
+            print("\nCommon features for drift detection:")
+            print(common_features)
+            
+            # Check for data drift using common features
+            drift_detected, drift_features = detect_data_drift(
+                test_data[common_features],
+                feedback_features[common_features]
+            )
+            
+            # Generate data profile report
+            profile = ProfileReport(
+                pd.json_normalize(feedback_df['property_data']),
+                title="Feedback Data Profile"
+            )
+            profile.to_file("feedback_profile.html")
+            
+            # Determine if retraining is needed
+            retraining_needed = (
+                drift_detected or
+                rmse > 150000 or  # Threshold from monitoring config
+                mae > 100000      # Threshold from monitoring config
+            )
+            
+            # Write results
+            with open('monitoring_results.txt', 'w') as f:
+                f.write(f"RMSE: {rmse}\n")
+                f.write(f"MAE: {mae}\n")
+                f.write(f"Data Drift Detected: {drift_detected}\n")
+                if drift_features:
+                    f.write(f"Drift Features: {', '.join(drift_features)}\n")
+                f.write(f"Retraining Needed: {retraining_needed}")
+            
+            # Exit with status code for workflow
+            exit(0 if not retraining_needed else 1)
+        
+        if __name__ == "__main__":
+            main()
+        EOL
+
+    - name: Setup DVC and Pull Data
+      env:
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GCP_SA_KEY }}
+      run: |
+        echo '${{ secrets.GCP_SA_KEY }}' > key.json
+        
+        # Configure DVC remotes
+        dvc remote modify data credentialpath key.json
+        
+        # Pull data
+        dvc pull
+        
+        # Debug - List directories
+        echo "Directory structure after DVC pull:"
+        ls -R Data/
+
+    - name: Download current model
+      run: |
+        gcloud storage cp gs://${{ env.ARTIFACT_REGISTRY }}/${{ env.MODEL_PATH }}/current/model.joblib .
+
+    - name: Run monitoring
+      id: monitoring
+      continue-on-error: true
+      run: python monitor.py
+
+    - name: Upload monitoring results
+      uses: actions/upload-artifact@v2
+      with:
+        name: monitoring-results
+        path: |
+          monitoring_results.txt
+          feedback_profile.html
+
+    - name: Trigger retraining if needed
+      if: steps.monitoring.outcome == 'failure'
+      uses: benc-uk/workflow-dispatch@v1
+      with:
+        workflow: Model Training Pipeline
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Notify on completion
+      if: always()
+      run: |
+        if [ -f monitoring_results.txt ]; then
+          echo "Model Monitoring Results:"
+          cat monitoring_results.txt
+        fi
