@@ -114,17 +114,12 @@ jobs:
             # Fetch recent feedback
             feedback_df = fetch_feedback_data()
             
-            if len(feedback_df) == 0:
-                print("No feedback data available yet")
-                exit(0)
-
             # Prepare actual vs predicted values
             y_true = feedback_df['actual_price'].values
             y_pred = feedback_df['predicted_price'].values
             
             # Calculate metrics on feedback data
             rmse, mae = calculate_metrics(y_true, y_pred)
-            print(f"Current metrics - RMSE: {rmse:.2f}, MAE: {mae:.2f}")
             
             # Load test data used in training
             test_data = fetch_test_data()
@@ -132,23 +127,99 @@ jobs:
             # Extract features from property_data JSON
             feedback_features = pd.json_normalize(feedback_df['property_data'])
             
-            # Ensure features match test data
-            common_features = list(set(test_data.columns) & set(feedback_features.columns))
-            print("\nCommon features for drift detection:")
-            print(common_features)
+            # Base numeric features (exact names from training)
+            numeric_features = [
+                'GROSS_AREA', 'LIVING_AREA', 'LAND_SF', 'YR_BUILT',
+                'BED_RMS', 'FULL_BTH', 'HLF_BTH', 'NUM_PARKING',
+                'FIREPLACES', 'KITCHENS', 'TT_RMS', 'ZIP_CODE',
+                'YR_REMODEL'
+            ]
             
-            # Check for data drift using common features
+            # Convert numeric columns
+            for col in numeric_features:
+                if col in test_data.columns and col in feedback_features.columns:
+                    try:
+                        test_data[col] = pd.to_numeric(test_data[col], errors='coerce')
+                        feedback_features[col] = pd.to_numeric(feedback_features[col], errors='coerce')
+                        print(f"✓ Successfully converted {col}")
+                    except Exception as e:
+                        print(f"✗ Failed to convert {col}: {str(e)}")
+            
+            # Add derived features (same as training)
+            print("\nAdding derived features...")
+            for df in [test_data, feedback_features]:
+                # Property age and renovations
+                df['property_age'] = 2025 - df['YR_BUILT'].astype(int)
+                if 'YR_REMODEL' in df.columns:
+                    df['years_since_renovation'] = 2025 - df['YR_REMODEL'].fillna(df['YR_BUILT']).astype(int)
+                    df['has_renovation'] = (df['YR_REMODEL'] > df['YR_BUILT']).astype(int)
+                
+                # Area ratios
+                df['living_area_ratio'] = np.where(df['GROSS_AREA'] > 0, df['LIVING_AREA'] / df['GROSS_AREA'], 0)
+                df['floor_area_ratio'] = np.where(df['LAND_SF'] > 0, df['GROSS_AREA'] / df['LAND_SF'], 0)
+                df['non_living_area'] = np.maximum(0, df['GROSS_AREA'] - df['LIVING_AREA'])
+                df['rooms_per_area'] = np.where(df['LIVING_AREA'] > 0, df['TT_RMS'] / df['LIVING_AREA'], 0)
+                
+                # Bathroom calculations
+                df['total_bathrooms'] = df['FULL_BTH'] + 0.5 * df['HLF_BTH']
+
+                # Calculate condition scores
+                condition_map = {'E': 5, 'VG': 4.5, 'G': 4, 'A': 3, 'F': 2, 'P': 1}
+                
+                def calculate_condition_score(row, condition_cols):
+                    max_score = 3  # default score
+                    for col in condition_cols:
+                        if row[col]:  # if this condition is true
+                            cond_code = col.split(' - ')[0].split('_')[-1]
+                            score = condition_map.get(cond_code, 0)
+                            max_score = max(max_score, score)
+                    return max_score
+                
+                # Interior score
+                int_cond_cols = [col for col in df.columns if col.startswith('INT_COND_')]
+                if int_cond_cols:
+                    df['interior_score'] = df.apply(
+                        lambda row: calculate_condition_score(row, int_cond_cols), axis=1
+                    )
+                
+                # Exterior score
+                ext_cond_cols = [col for col in df.columns if col.startswith('EXT_COND_')]
+                if ext_cond_cols:
+                    df['exterior_score'] = df.apply(
+                        lambda row: calculate_condition_score(row, ext_cond_cols), axis=1
+                    )
+                
+                # Overall score
+                overall_cond_cols = [col for col in df.columns if col.startswith('OVERALL_COND_')]
+                if overall_cond_cols:
+                    df['overall_score'] = df.apply(
+                        lambda row: calculate_condition_score(row, overall_cond_cols), axis=1
+                    )
+            
+            print("\nChecking for drift using processed features...")
+            processed_features = numeric_features + [
+                'property_age', 'years_since_renovation', 'has_renovation',
+                'living_area_ratio', 'floor_area_ratio', 'non_living_area',
+                'rooms_per_area', 'total_bathrooms',
+                'interior_score', 'exterior_score', 'overall_score'
+            ]
+            
+            # Filter for features present in both datasets
+            drift_features = [f for f in processed_features if f in test_data.columns and f in feedback_features.columns]
+            print(f"\nUsing {len(drift_features)} features for drift detection:")
+            print(drift_features)
+
+            # Check for data drift using processed features
+            available_features = [f for f in processed_features if f in test_data.columns and f in feedback_features.columns]
             drift_detected, drift_features = detect_data_drift(
-                test_data[common_features],
-                feedback_features[common_features]
+                test_data[available_features],
+                feedback_features[available_features]
             )
             
-            # Generate data profile report with minimal settings to avoid license warning
+            # Generate data profile report
             profile = ProfileReport(
                 pd.json_normalize(feedback_df['property_data']),
-                title="Feedback Data Profile",
-                minimal=True,
-                explorative=True
+                title="Feedback Data Profile"
             )
             profile.to_file("feedback_profile.html")
             
@@ -223,22 +294,7 @@ jobs:
     - name: Run monitoring
       id: monitoring
       continue-on-error: true
-      env:
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-      run: |
-        # Debug environment variables
-        echo "Checking if env vars are set:"
-        if [ -z "$SUPABASE_URL" ]; then
-          echo "SUPABASE_URL is not set"
-          exit 1
-        fi
-        if [ -z "$SUPABASE_SERVICE_KEY" ]; then
-          echo "SUPABASE_SERVICE_KEY is not set"
-          exit 1
-        fi
-        
-        python monitor.py
+      run: python monitor.py
 
     - name: Upload monitoring results
       uses: actions/upload-artifact@v4
@@ -289,40 +345,10 @@ jobs:
         echo "Model monitoring/training pipeline failed. Please check the logs for details."
         exit 1
 
-    - name: Generate Summary
+    - name: Notify on completion
       if: always()
       run: |
-        echo "# Model Monitoring Results" >> $GITHUB_STEP_SUMMARY
-        
         if [ -f monitoring_results.txt ]; then
-          echo "## Metrics and Status" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          cat monitoring_results.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        if [ -f Data/final/X_test.csv ]; then
-          echo "## Data Status" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Test data available" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "## Data Status" >> $GITHUB_STEP_SUMMARY
-          echo "❌ Test data missing" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        if [ -f model.joblib ]; then
-          echo "✅ Model loaded successfully" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "❌ Model loading failed" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        if [ "${{ steps.monitoring.outcome }}" == "success" ]; then
-          echo "## Overall Status" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Model performance within acceptable range" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "## Overall Status" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.verify_training.outcome }}" == "success" ]; then
-            echo "🔄 Model retrained successfully" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ Model needs attention" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "Model Monitoring Results:"
+          cat monitoring_results.txt
         fi
