@@ -444,13 +444,16 @@ def train_model():
                     plots[f"{model_name} Hyperparameters"] = sensitivity_path
                     mlflow.log_artifact(sensitivity_path)
                     
-                    #4. SHAP Analysis
-                    logger.info(f"Generating SHAP analysis for {model_name}...")
-                    shap_analysis = generate_shap_analysis(
-                        model.model if hasattr(model, 'model') else model,
-                        X_test,
-                        results_dir=model_results_dir # type: ignore
-                    )
+                    #4. SHAP Analysis (only for best model)
+                    if metrics['r2'] > best_score:
+                        logger.info(f"Generating SHAP analysis for best model {model_name}...")
+                        shap_analysis = generate_shap_analysis(
+                            model.model if hasattr(model, 'model') else model,
+                            X_test,
+                            results_dir=model_results_dir # type: ignore
+                        )
+                    else:
+                        shap_analysis = None
                     
                     # Add SHAP plots
                     if shap_analysis and 'plots' in shap_analysis:
