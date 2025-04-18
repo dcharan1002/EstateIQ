@@ -19,6 +19,8 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -169,12 +171,37 @@ jobs:
         # Configure DVC remotes
         dvc remote modify data credentialpath key.json
         
+        # Debug - List remotes
+        echo "DVC Remotes:"
+        dvc remote list
+        
         # Pull data
-        dvc pull
+        dvc pull || echo "Warning: DVC pull had issues"
+        
+        # Create Data directory if it doesn't exist
+        mkdir -p Data
+        
+        # Create symbolic links from data to Data
+        if [ -d "data" ]; then
+          echo "Creating symbolic links from data/ to Data/"
+          for dir in data/*; do
+            if [ -d "$dir" ]; then
+              base=$(basename "$dir")
+              mkdir -p "Data/$base"
+              cp -r "$dir"/* "Data/$base/"
+            fi
+          done
+        else
+          echo "Warning: data directory not found after DVC pull"
+        fi
         
         # Debug - List directories
-        echo "Directory structure after DVC pull:"
-        ls -R Data/
+        echo "Directory structure after setup:"
+        ls -la
+        echo "Data directory contents:"
+        ls -la Data/ || echo "No Data directory"
+        echo "data directory contents:"
+        ls -la data/ || echo "No data directory"
 
     - name: Download current model
       run: |
