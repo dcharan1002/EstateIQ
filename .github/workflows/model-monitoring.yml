@@ -114,12 +114,17 @@ jobs:
             # Fetch recent feedback
             feedback_df = fetch_feedback_data()
             
+            if len(feedback_df) == 0:
+                print("No feedback data available yet")
+                exit(0)
+
             # Prepare actual vs predicted values
             y_true = feedback_df['actual_price'].values
             y_pred = feedback_df['predicted_price'].values
             
             # Calculate metrics on feedback data
             rmse, mae = calculate_metrics(y_true, y_pred)
+            print(f"Current metrics - RMSE: {rmse:.2f}, MAE: {mae:.2f}")
             
             # Load test data used in training
             test_data = fetch_test_data()
@@ -138,10 +143,12 @@ jobs:
                 feedback_features[common_features]
             )
             
-            # Generate data profile report
+            # Generate data profile report with minimal settings to avoid license warning
             profile = ProfileReport(
                 pd.json_normalize(feedback_df['property_data']),
-                title="Feedback Data Profile"
+                title="Feedback Data Profile",
+                minimal=True,
+                explorative=True
             )
             profile.to_file("feedback_profile.html")
             
@@ -216,7 +223,22 @@ jobs:
     - name: Run monitoring
       id: monitoring
       continue-on-error: true
-      run: python monitor.py
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      run: |
+        # Debug environment variables
+        echo "Checking if env vars are set:"
+        if [ -z "$SUPABASE_URL" ]; then
+          echo "SUPABASE_URL is not set"
+          exit 1
+        fi
+        if [ -z "$SUPABASE_SERVICE_KEY" ]; then
+          echo "SUPABASE_SERVICE_KEY is not set"
+          exit 1
+        fi
+        
+        python monitor.py
 
     - name: Upload monitoring results
       uses: actions/upload-artifact@v4
@@ -267,10 +289,40 @@ jobs:
         echo "Model monitoring/training pipeline failed. Please check the logs for details."
         exit 1
 
-    - name: Notify on completion
+    - name: Generate Summary
       if: always()
       run: |
+        echo "# Model Monitoring Results" >> $GITHUB_STEP_SUMMARY
+        
         if [ -f monitoring_results.txt ]; then
-          echo "Model Monitoring Results:"
-          cat monitoring_results.txt
+          echo "## Metrics and Status" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat monitoring_results.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ -f Data/final/X_test.csv ]; then
+          echo "## Data Status" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Test data available" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "## Data Status" >> $GITHUB_STEP_SUMMARY
+          echo "❌ Test data missing" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ -f model.joblib ]; then
+          echo "✅ Model loaded successfully" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Model loading failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ steps.monitoring.outcome }}" == "success" ]; then
+          echo "## Overall Status" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Model performance within acceptable range" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "## Overall Status" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.verify_training.outcome }}" == "success" ]; then
+            echo "🔄 Model retrained successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Model needs attention" >> $GITHUB_STEP_SUMMARY
+          fi
         fi
