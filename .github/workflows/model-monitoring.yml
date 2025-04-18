@@ -12,6 +12,11 @@ env:
   REGION: us-central1
   ARTIFACT_REGISTRY: estateiq-models
   MODEL_PATH: models/estate_price_prediction
+  SA_EMAIL: self@estateiqclone.iam.gserviceaccount.com
+  GMAIL_USER: ${{ secrets.GMAIL_USER }}
+  GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+  NOTIFICATION_EMAIL: ${{ secrets.NOTIFICATION_EMAIL }}
+  MLFLOW_TRACKING_URI: sqlite:///mlflow.db
 
 jobs:
   monitor:
@@ -30,7 +35,8 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install numpy pandas scikit-learn supabase scipy pandas_profiling dvc dvc[gs]
+        pip install -r requirements.txt
+        pip install numpy pandas scikit-learn supabase scipy ydata-profiling dvc dvc[gs] mlflow google-cloud-storage fairlearn xgboost
 
     - name: Google Auth
       uses: google-github-actions/auth@v2.1.2
@@ -50,7 +56,7 @@ jobs:
         from supabase import create_client
         from sklearn.metrics import mean_squared_error, mean_absolute_error
         import joblib
-        from pandas_profiling import ProfileReport
+        from ydata_profiling import ProfileReport
         
         # Initialize Supabase client
         supabase = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_KEY'])
@@ -221,18 +227,45 @@ jobs:
           feedback_profile.html
         retention-days: 30
 
-    - name: Trigger retraining if needed
+    - name: Train Model if needed
       if: steps.monitoring.outcome == 'failure'
-      uses: actions/github-script@v7
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          await github.rest.actions.createWorkflowDispatch({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            workflow_id: 'model-training.yml',
-            ref: context.ref
-          });
+      run: |
+        gcloud builds submit . \
+          --config=cloudbuild.yaml \
+          --project=${{ env.PROJECT_ID }} \
+          --substitutions=_PROJECT_ID=${{ env.PROJECT_ID }},_ARTIFACT_REGISTRY=${{ env.ARTIFACT_REGISTRY }},_MODEL_PATH=${{ env.MODEL_PATH }},_REGION=${{ env.REGION }},_MLFLOW_TRACKING_URI=${{ env.MLFLOW_TRACKING_URI }},_GMAIL_USER="${{ env.GMAIL_USER }}",_GMAIL_APP_PASSWORD="${{ env.GMAIL_APP_PASSWORD }}",_NOTIFICATION_EMAIL="${{ env.NOTIFICATION_EMAIL }}"
+
+    - name: Verify Training Success
+      if: steps.monitoring.outcome == 'failure'
+      id: verify_training
+      run: |
+        # Wait for metrics file
+        for i in {1..10}; do
+          if gcloud storage ls gs://${{ env.ARTIFACT_REGISTRY }}/${{ env.MODEL_PATH }}/current/metrics.json; then
+            echo "Metrics file found"
+            break
+          fi
+          if [ $i -eq 10 ]; then
+            echo "Timeout waiting for metrics file"
+            exit 1
+          fi
+          sleep 30
+        done
+
+        # Check metrics
+        gcloud storage cp gs://${{ env.ARTIFACT_REGISTRY }}/${{ env.MODEL_PATH }}/current/metrics.json ./metrics.json
+        if jq -e '.metrics.r2' metrics.json > /dev/null; then
+          echo "::set-output name=training_success::true"
+        else
+          echo "::set-output name=training_success::false"
+          exit 1
+        fi
+
+    - name: Notify on Failure
+      if: failure()
+      run: |
+        echo "Model monitoring/training pipeline failed. Please check the logs for details."
+        exit 1
 
     - name: Notify on completion
       if: always()
