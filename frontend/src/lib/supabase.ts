@@ -1,7 +1,7 @@
 'use client';
 
 import { createClient } from '@supabase/supabase-js';
-import { useSession } from '@clerk/nextjs';
+import { Session } from '@clerk/nextjs/server';
 
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
   throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_URL');
@@ -21,12 +21,7 @@ interface FeedbackData {
 }
 
 // Submit valuation feedbackk
-export const submitFeedback = async (feedback: FeedbackData) => {
-  const { session } = useSession();
-
-  if (!session) {
-    throw new Error('User session not found. Please log in.');
-  }
+export async function submitFeedback(feedback: FeedbackData, session: any) {
   
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

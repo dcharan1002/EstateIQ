@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
@@ -31,12 +31,12 @@ jobs:
         pip install numpy pandas scikit-learn supabase-py scipy pandas_profiling dvc dvc[gs]
 
     - name: Google Auth
-      uses: google-github-actions/auth@v2
+      uses: google-github-actions/auth@v2.1.2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
 
     - name: Set up Cloud SDK
-      uses: google-github-actions/setup-gcloud@v2
+      uses: google-github-actions/setup-gcloud@v2.1.0
 
     - name: Create monitoring script
       run: |
@@ -186,19 +186,26 @@ jobs:
       run: python monitor.py
 
     - name: Upload monitoring results
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: monitoring-results
         path: |
           monitoring_results.txt
           feedback_profile.html
+        retention-days: 30
 
     - name: Trigger retraining if needed
       if: steps.monitoring.outcome == 'failure'
-      uses: benc-uk/workflow-dispatch@v1
+      uses: actions/github-script@v7
       with:
-        workflow: Model Training Pipeline
-        token: ${{ secrets.GITHUB_TOKEN }}
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          await github.rest.actions.createWorkflowDispatch({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            workflow_id: 'model-training.yml',
+            ref: context.ref
+          });
 
     - name: Notify on completion
       if: always()

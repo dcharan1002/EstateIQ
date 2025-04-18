@@ -60,7 +60,7 @@ export default function PropertyMap({ zipCode, initialLat, initialLng, onLocatio
 
   // Using dynamic import for MapContainer to avoid SSR issues
   return (
-    <div className="w-full h-64 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+    <div className="w-full h-full">
       <MapContainer
         key={`${position[0]}-${position[1]}`} // Force re-render when position changes
         center={position}
