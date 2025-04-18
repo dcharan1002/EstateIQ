@@ -18,7 +18,7 @@ def generate_shap_analysis(model, X_test, results_dir="results", max_display=10)
         
         # Convert to DataFrame if needed
         if not isinstance(X_test, pd.DataFrame):
-            X_test = pd.DataFrame(X_test)
+            X_test = pd.DataFrame(X_test).head(1000)
             
         # Use TreeExplainer for tree-based models (RF and XGBoost)
         if isinstance(model, (RandomForestRegressor, xgb.XGBRegressor)):

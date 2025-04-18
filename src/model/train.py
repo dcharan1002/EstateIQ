@@ -206,10 +206,10 @@ def load_data():
         }
         
         # Read the CSV files
-        X_train = pd.read_csv(data_dir / "X_train.csv", **csv_options).head(1000)
-        X_test = pd.read_csv(data_dir / "X_test.csv", **csv_options).head(1000)
-        y_train = pd.read_csv(data_dir / "y_train.csv", **csv_options).squeeze().iloc[:1000]
-        y_test = pd.read_csv(data_dir / "y_test.csv", **csv_options).squeeze().iloc[:1000]
+        X_train = pd.read_csv(data_dir / "X_train.csv", **csv_options)
+        X_test = pd.read_csv(data_dir / "X_test.csv", **csv_options)
+        y_train = pd.read_csv(data_dir / "y_train.csv", **csv_options).squeeze()
+        y_test = pd.read_csv(data_dir / "y_test.csv", **csv_options).squeeze()
 
         # Clean column names by stripping whitespace
         X_train.columns = X_train.columns.str.strip()
@@ -444,20 +444,20 @@ def train_model():
                     plots[f"{model_name} Hyperparameters"] = sensitivity_path
                     mlflow.log_artifact(sensitivity_path)
                     
-                    # 4. SHAP Analysis
-                    # logger.info(f"Generating SHAP analysis for {model_name}...")
-                    # shap_analysis = generate_shap_analysis(
-                    #     model.model if hasattr(model, 'model') else model,
-                    #     X_test,
-                    #     results_dir=model_results_dir # type: ignore
-                    # )
+                    #4. SHAP Analysis
+                    logger.info(f"Generating SHAP analysis for {model_name}...")
+                    shap_analysis = generate_shap_analysis(
+                        model.model if hasattr(model, 'model') else model,
+                        X_test,
+                        results_dir=model_results_dir # type: ignore
+                    )
                     
-                    # # Add SHAP plots
-                    # if shap_analysis and 'plots' in shap_analysis:
-                    #     for plot_name, plot_path in shap_analysis['plots'].items():
-                    #         plots[f"{model_name} {plot_name}"] = plot_path
-                    #         if os.path.exists(plot_path):
-                    #             mlflow.log_artifact(plot_path)
+                    # Add SHAP plots
+                    if shap_analysis and 'plots' in shap_analysis:
+                        for plot_name, plot_path in shap_analysis['plots'].items():
+                            plots[f"{model_name} {plot_name}"] = plot_path
+                            if os.path.exists(plot_path):
+                                mlflow.log_artifact(plot_path)
                     
                     # Store all plots for this model
                     all_plots.update(plots)
