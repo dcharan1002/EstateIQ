@@ -34,7 +34,6 @@ interface SupabaseFeedbackData {
   notes: string;
   property_data: Record<string, any>;
   deviation: number;
-  clerk_user_id: string;
 }
 const ValuationReport: React.FC<ValuationReportProps> = ({ formData, prediction }) => {
   const { user } = useUser();
@@ -90,8 +89,7 @@ const ValuationReport: React.FC<ValuationReportProps> = ({ formData, prediction 
         confidence: feedback.confidence,
         notes: feedback.notes,
         property_data: feedback.propertyData,
-        deviation: deviation,
-        clerk_user_id: user.id
+        deviation: deviation
       };
 
       const { needsRetraining } = await submitFeedback(supabaseFeedback);
