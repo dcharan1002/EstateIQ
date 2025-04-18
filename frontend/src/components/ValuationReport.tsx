@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { downloadPDF } from '@/lib/downloadPDF';
 import { useTheme } from 'next-themes';
 import { submitFeedback } from '@/lib/supabase';
+import { useUser } from "@clerk/nextjs";
 // Dynamically import PropertyMap with SSR disabled
 const PropertyMap = dynamic(() => import('./PropertyMap'), { ssr: false });
 
@@ -24,7 +25,19 @@ interface FeedbackData {
   propertyData: ValuationReportPropForm;
   predictedPrice: number;
 }
+
+// Interface matching Supabase schema
+interface SupabaseFeedbackData {
+  predicted_price: number;
+  actual_price: number;
+  confidence: number;
+  notes: string;
+  property_data: Record<string, any>;
+  deviation: number;
+  clerk_user_id: string;
+}
 const ValuationReport: React.FC<ValuationReportProps> = ({ formData, prediction }) => {
+  const { user } = useUser();
   const reportRef = useRef<HTMLDivElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,15 +76,25 @@ const ValuationReport: React.FC<ValuationReportProps> = ({ formData, prediction 
       }
     }
 
+    if (!user) {
+      setSubmitError('You must be logged in to submit feedback');
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
-      const { needsRetraining } = await submitFeedback({
+      // Transform feedback data to match Supabase schema
+      const supabaseFeedback: SupabaseFeedbackData = {
         predicted_price: feedback.predictedPrice,
         actual_price: feedback.actualPrice,
         confidence: feedback.confidence,
         notes: feedback.notes,
         property_data: feedback.propertyData,
-        deviation: deviation
-      });
+        deviation: deviation,
+        clerk_user_id: user.id
+      };
+
+      const { needsRetraining } = await submitFeedback(supabaseFeedback);
 
       setFeedbackSubmitted(true);
 

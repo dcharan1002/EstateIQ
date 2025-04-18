@@ -19,6 +19,7 @@ interface FeedbackData {
   notes?: string;
   property_data: Record<string, any>;
   deviation: number;
+  clerk_user_id: string;
 }
 
 // Submit valuation feedback
