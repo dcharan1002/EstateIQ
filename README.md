@@ -14,6 +14,7 @@ A robust data preprocessing and model development pipeline for property data wit
    ```bash
    # Clone the repository
    git clone git@github.com:sshivaditya/EstateIQ.git
+   
    cd EstateIQ
 
    # Create and activate virtual environment
