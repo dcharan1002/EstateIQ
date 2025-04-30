@@ -46,7 +46,6 @@ def get_model(model_name, **kwargs):
     params.update(kwargs)
     
     return model_class(**params)
-
 def list_models():
     """List all available models and their default parameters."""
     return {
